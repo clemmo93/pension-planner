@@ -135,7 +135,7 @@ export default function PensionPlanner() {
   const [taxFreeYears, setTaxFreeYears] = useState(1);
   const [drawdownAge, setDrawdownAge] = useState(57);
   const [inflationRate, setInflationRate] = useState(2.5);
-  const [currentAge] = useState(35);
+  const [currentAge, setCurrentAge] = useState(35);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [drawdownPhases, setDrawdownPhases] = useState([
@@ -367,6 +367,7 @@ export default function PensionPlanner() {
 
         <div style={cardStyle}>
           {sectionTitle("Contributions & Growth")}
+          <SliderInput label="Your Age" value={currentAge} onChange={setCurrentAge} min={18} max={54} step={1} description="Projections run from this age through to 90" />
           <SliderInput label="Current Pot Value" value={currentPot} onChange={setCurrentPot} min={0} max={1000000} step={5000} format={formatFull} />
           <SliderInput label="Annual Contributions" value={annualContrib} onChange={setAnnualContrib} min={0} max={60000} step={500} format={formatFull} description="Your + employer combined annual contributions" />
           <SliderInput label="Annual Growth Rate" value={growthRate} onChange={setGrowthRate} min={0} max={12} step={0.5} suffix="%" description="Expected annual investment return before fees" />
