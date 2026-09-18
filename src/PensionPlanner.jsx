@@ -70,6 +70,47 @@ function Control({ id, label, value, onChange, min, max, step, fmt, note, typed,
   const [draft, setDraft] = useState(null);
   const shown = draft !== null ? draft : fmt(value);
 
+  // Steps accumulate against a shadow value rather than the rendered prop.
+  // React batches state updates, so several taps (or repeat ticks) inside one
+  // frame would otherwise all read the same stale number and collapse into a
+  // single step. The shadow re-syncs whenever the value changes from anywhere
+  // else — a slider drag, or typed entry.
+  const shadow = useRef(value);
+  const emitted = useRef(value);
+  if (value !== emitted.current) {
+    shadow.current = value;
+    emitted.current = value;
+  }
+  const timer = useRef(null);
+
+  const decimals = (String(step).split(".")[1] || "").length;
+  const snap = (v) => parseFloat(Math.min(max, Math.max(min, v)).toFixed(decimals));
+
+  const nudge = (dir) => {
+    const next = snap(shadow.current + dir * step);
+    if (next === shadow.current) return;
+    shadow.current = next;
+    emitted.current = next;
+    onChange(next);
+  };
+
+  // Hold to repeat, accelerating — a £1,000 step across a £1m range is
+  // otherwise a thousand taps.
+  const hold = (dir) => {
+    nudge(dir);
+    let delay = 340;
+    const tick = () => {
+      nudge(dir);
+      delay = Math.max(40, delay * 0.72);
+      timer.current = setTimeout(tick, delay);
+    };
+    timer.current = setTimeout(tick, delay);
+  };
+  const release = () => {
+    clearTimeout(timer.current);
+    timer.current = null;
+  };
+
   const commit = () => {
     const n = parseMoney(draft);
     setDraft(null);
@@ -99,12 +140,26 @@ function Control({ id, label, value, onChange, min, max, step, fmt, note, typed,
         </span>
       </div>
       <div className="ctl-note" id={`${id}-note`}>{note}</div>
-      <input
-        type="range" id={id}
-        min={min} max={max} step={step} value={value}
-        aria-describedby={`${id}-note`}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-      />
+      <div className="ctl-row">
+        <button
+          type="button" className="nudge" aria-label={`Decrease ${label}`}
+          disabled={value <= min}
+          onPointerDown={(e) => { e.preventDefault(); hold(-1); }}
+          onPointerUp={release} onPointerLeave={release} onPointerCancel={release}
+        >&minus;</button>
+        <input
+          type="range" id={id}
+          min={min} max={max} step={step} value={value}
+          aria-describedby={`${id}-note`}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+        />
+        <button
+          type="button" className="nudge" aria-label={`Increase ${label}`}
+          disabled={value >= max}
+          onPointerDown={(e) => { e.preventDefault(); hold(1); }}
+          onPointerUp={release} onPointerLeave={release} onPointerCancel={release}
+        >+</button>
+      </div>
       <div className="ctl-ends"><span>{fmt(min)}</span><span>{fmt(max)}</span></div>
     </div>
   );
