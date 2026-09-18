@@ -342,19 +342,20 @@ function Chart({ years, showToday }) {
  * cash terms the payment climbs every year, but once inflation is taken out it
  * may be flat — or falling. That is invisible in a single percentage.
  */
-function ContributionTrajectory({ years, children }) {
-  const rows = years.filter((y) => y.contributionThisYear > 0);
-  if (rows.length < 2) return null;
+function ContributionTrajectory({ contributions, children }) {
+  const rows = contributions;
+  // Nothing to plot if there are no working years left, or nothing going in.
+  if (rows.length < 2 || rows[rows.length - 1].amount <= 0) return null;
 
   const first = rows[0], last = rows[rows.length - 1];
   const W = 520, H = 104, padL = 46, padR = 8, padT = 8, padB = 20;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const max = Math.max(...rows.map((y) => Math.max(y.contributionThisYear, y.contributionToday)), 1);
+  const max = Math.max(...rows.map((y) => Math.max(y.amount, y.amountToday)), 1);
   const bw = Math.max(1.5, plotW / rows.length - 1.5);
   const xOf = (i) => padL + i * (plotW / rows.length);
 
-  const flat = Math.round(first.contributionToday) === Math.round(last.contributionToday);
-  const rising = last.contributionToday > first.contributionToday;
+  const flat = Math.round(first.amountToday) === Math.round(last.amountToday);
+  const rising = last.amountToday > first.amountToday;
 
   return (
     <div className="card">
@@ -373,7 +374,7 @@ function ContributionTrajectory({ years, children }) {
             );
           })}
           {rows.map((y, i) => {
-            const h = (y.contributionThisYear / max) * plotH;
+            const h = (y.amount / max) * plotH;
             return (
               <rect key={y.age} x={xOf(i)} y={padT + plotH - h} width={bw} height={Math.max(h, 0)} rx="1"
                 opacity=".9" style={{ fill: "var(--accent-2)" }} />
@@ -381,7 +382,7 @@ function ContributionTrajectory({ years, children }) {
           })}
           <polyline fill="none" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round"
             style={{ stroke: "var(--ink-3)" }}
-            points={rows.map((y, i) => `${xOf(i) + bw / 2},${padT + plotH - (y.contributionToday / max) * plotH}`).join(" ")} />
+            points={rows.map((y, i) => `${xOf(i) + bw / 2},${padT + plotH - (y.amountToday / max) * plotH}`).join(" ")} />
           {[first, last].map((y, k) => (
             <text key={y.age} x={k === 0 ? padL : W - padR} y={H - 6} textAnchor={k === 0 ? "start" : "end"}
               fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>{y.age}</text>
@@ -393,13 +394,13 @@ function ContributionTrajectory({ years, children }) {
         <span><i className="dash" />Today&rsquo;s £</span>
       </div>
       <p className="tcap" style={{ margin: "10px 0 0" }}>
-        <b>{full(first.contributionThisYear)}</b> at {first.age} rising to <b>{full(last.contributionThisYear)}</b> at {last.age}
+        <b>{full(first.amount)}</b> at {first.age} rising to <b>{full(last.amount)}</b> at {last.age}
         {" — "}
         {flat
-          ? <>but <b>{full(first.contributionToday)}</b> a year throughout in today&rsquo;s £, so what you pay in holds its value.</>
+          ? <>but <b>{full(first.amountToday)}</b> a year throughout in today&rsquo;s £, so what you pay in holds its value.</>
           : rising
-            ? <>and <b>{full(first.contributionToday)}</b> to <b>{full(last.contributionToday)}</b> in today&rsquo;s £, so you are paying in more in real terms.</>
-            : <>but only <b>{full(first.contributionToday)}</b> down to <b>{full(last.contributionToday)}</b> in today&rsquo;s £ — inflation is outpacing your increases.</>}
+            ? <>and <b>{full(first.amountToday)}</b> to <b>{full(last.amountToday)}</b> in today&rsquo;s £, so you are paying in more in real terms.</>
+            : <>but only <b>{full(first.amountToday)}</b> down to <b>{full(last.amountToday)}</b> in today&rsquo;s £ — inflation is outpacing your increases.</>}
       </p>
       {children && <div className="after-chart">{children}</div>}
     </div>
@@ -512,7 +513,7 @@ export default function PensionPlanner() {
               <span className="e">
                 <span className="k">You will have paid in</span>
                 <span className="v">{money(P.contributedTotal)}</span>
-                <span className="s">over {Math.max(start - s.currentAge, 0)} years</span>
+                <span className="s">over {P.contributions.length} years</span>
               </span>
             </div>
 
@@ -544,7 +545,7 @@ export default function PensionPlanner() {
               />
             </div>
 
-            <ContributionTrajectory years={P.years}>
+            <ContributionTrajectory contributions={P.contributions}>
               <Control
                 id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}

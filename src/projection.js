@@ -32,6 +32,7 @@ export function phaseSpans(s) {
 
 export function project(s) {
   const years = [];
+  const contributions = [];
   const start = incomeStartAge(s);
 
   // Map each age to the phase governing it, so the rate lookup is a plain read.
@@ -59,13 +60,22 @@ export function project(s) {
     const phase = byAge[age] || { rate: fallbackRate, index: s.phases.length - 1 };
     const deflator = Math.pow(1 + s.inflation / 100, age - s.currentAge);
 
-    // Contributions run until the pot is first touched.
-    if (age > s.currentAge && age < start) {
+    // A contribution is paid across the year, so the money landing in the pot
+    // at this age was paid when you were a year younger — the very first one is
+    // paid at your current age, today. Attributing and discounting it at the age
+    // it was actually paid is what makes £10,000 paid now worth £10,000 in
+    // today's money, and gives one payment for each working year.
+    if (age > s.currentAge && age <= start) {
+      const paidAtAge = age - 1;
+      const paidDeflator = Math.pow(1 + s.inflation / 100, paidAtAge - s.currentAge);
       pot += contribution;
       contributedTotal += contribution;
-      // Each year's payment discounted by that year's deflator, so the running
-      // total is what everything paid in so far is worth in today's money.
-      contributedTotalToday += contribution / deflator;
+      contributedTotalToday += contribution / paidDeflator;
+      contributions.push({
+        age: paidAtAge,
+        amount: contribution,
+        amountToday: contribution / paidDeflator,
+      });
       contribution *= 1 + s.contribGrowth / 100;
     }
 
@@ -108,10 +118,6 @@ export function project(s) {
       taxFreeToday: taxFreeThisYear / deflator,
       paidIn: contributedTotal,
       paidInToday: contributedTotalToday,
-      contributionThisYear: age > s.currentAge && age < start ? contribution / (1 + s.contribGrowth / 100) : 0,
-      contributionToday: age > s.currentAge && age < start
-        ? contribution / (1 + s.contribGrowth / 100) / deflator
-        : 0,
       deflator,
     });
 
@@ -122,7 +128,6 @@ export function project(s) {
           annual: 0, annualToday: 0, monthly: 0, monthlyToday: 0,
           taxFree: 0, taxFreeToday: 0,
           paidIn: contributedTotal, paidInToday: contributedTotalToday,
-          contributionThisYear: 0, contributionToday: 0,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
         });
       }
@@ -136,6 +141,7 @@ export function project(s) {
 
   return {
     years,
+    contributions,
     taxFreeTotal,
     contributedTotal,
     depleted,
