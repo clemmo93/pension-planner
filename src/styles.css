@@ -108,6 +108,9 @@ button, input { font: inherit; color: inherit; }
 }
 .fig .s { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-2); }
 .spark { flex: none; width: 104px; height: 38px; }
+/* Below this the fixed sparkline takes more than a third of the bar and
+   squeezes both figures. The real chart is on step 04; this one is a glance. */
+@media (max-width: 380px) { .spark { display: none; } }
 
 /* --- step nav: the numbering is a real sequence --- */
 .steps { display: flex; gap: 6px; margin: 16px 0 18px; }

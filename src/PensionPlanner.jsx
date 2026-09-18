@@ -337,6 +337,74 @@ function Chart({ years, showToday }) {
   );
 }
 
+/**
+ * Contributions over the saving years. The point of the chart is the gap: in
+ * cash terms the payment climbs every year, but once inflation is taken out it
+ * may be flat — or falling. That is invisible in a single percentage.
+ */
+function ContributionTrajectory({ years }) {
+  const rows = years.filter((y) => y.contributionThisYear > 0);
+  if (rows.length < 2) return null;
+
+  const first = rows[0], last = rows[rows.length - 1];
+  const W = 520, H = 104, padL = 46, padR = 8, padT = 8, padB = 20;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = Math.max(...rows.map((y) => Math.max(y.contributionThisYear, y.contributionToday)), 1);
+  const bw = Math.max(1.5, plotW / rows.length - 1.5);
+  const xOf = (i) => padL + i * (plotW / rows.length);
+
+  const flat = Math.round(first.contributionToday) === Math.round(last.contributionToday);
+  const rising = last.contributionToday > first.contributionToday;
+
+  return (
+    <div className="card">
+      <h3>What you pay in each year</h3>
+      <div className="chart-wrap">
+        <svg viewBox={`0 0 ${W} ${H}`} role="img"
+          aria-label={`Annual contribution from age ${first.age} to ${last.age}`}>
+          {[0, 0.5, 1].map((f) => {
+            const y = padT + plotH - f * plotH;
+            return (
+              <g key={f}>
+                <line x1={padL} y1={y} x2={W - padR} y2={y} style={{ stroke: "var(--grid)" }} strokeWidth="1" />
+                <text x={padL - 6} y={y + 3.5} textAnchor="end" fontSize="9"
+                  fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>{money(f * max)}</text>
+              </g>
+            );
+          })}
+          {rows.map((y, i) => {
+            const h = (y.contributionThisYear / max) * plotH;
+            return (
+              <rect key={y.age} x={xOf(i)} y={padT + plotH - h} width={bw} height={Math.max(h, 0)} rx="1"
+                opacity=".9" style={{ fill: "var(--accent-2)" }} />
+            );
+          })}
+          <polyline fill="none" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round"
+            style={{ stroke: "var(--ink-3)" }}
+            points={rows.map((y, i) => `${xOf(i) + bw / 2},${padT + plotH - (y.contributionToday / max) * plotH}`).join(" ")} />
+          {[first, last].map((y, k) => (
+            <text key={y.age} x={k === 0 ? padL : W - padR} y={H - 6} textAnchor={k === 0 ? "start" : "end"}
+              fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>{y.age}</text>
+          ))}
+        </svg>
+      </div>
+      <div className="legend">
+        <span><i style={{ background: "var(--accent-2)" }} />Future £</span>
+        <span><i className="dash" />Today&rsquo;s £</span>
+      </div>
+      <p className="tcap" style={{ margin: "10px 0 0" }}>
+        <b>{full(first.contributionThisYear)}</b> at {first.age} rising to <b>{full(last.contributionThisYear)}</b> at {last.age}
+        {" — "}
+        {flat
+          ? <>but <b>{full(first.contributionToday)}</b> a year throughout in today&rsquo;s £, so what you pay in holds its value.</>
+          : rising
+            ? <>and <b>{full(first.contributionToday)}</b> to <b>{full(last.contributionToday)}</b> in today&rsquo;s £, so you are paying in more in real terms.</>
+            : <>but only <b>{full(first.contributionToday)}</b> down to <b>{full(last.contributionToday)}</b> in today&rsquo;s £ — inflation is outpacing your increases.</>}
+      </p>
+    </div>
+  );
+}
+
 /* --------------------------------------------------------------------- app */
 
 export default function PensionPlanner() {
@@ -467,6 +535,15 @@ export default function PensionPlanner() {
                   : "You and your employer combined, before tax relief limits."}
               />
               <Control
+                id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
+                fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
+                note={s.contribGrowth === s.inflation
+                  ? "Matching inflation — your contributions hold their value."
+                  : s.contribGrowth < s.inflation
+                    ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
+                    : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
+              />
+              <Control
                 id="growth" label="Growth rate" value={s.growth} min={0} max={12} step={0.25}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ growth: v })}
                 note={s.growth >= 8
@@ -475,21 +552,14 @@ export default function PensionPlanner() {
               />
             </div>
 
+            <ContributionTrajectory years={P.years} />
+
             <div className="card">
-              <h3>Assumptions</h3>
+              <h3>Inflation</h3>
               <Control
                 id="inflation" label="Inflation" value={s.inflation} min={0} max={6} step={0.25}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ inflation: v })}
-                note="Sets how far future £ are discounted to today’s £."
-              />
-              <Control
-                id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
-                fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
-                note={s.contribGrowth === s.inflation
-                  ? "Matching inflation — your contributions hold their value."
-                  : s.contribGrowth < s.inflation
-                    ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
-                    : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
+                note="Sets how far future £ are discounted to today’s £, and what your contributions have to beat."
               />
             </div>
           </section>
@@ -669,11 +739,11 @@ export default function PensionPlanner() {
 
             <div className="card">
               <h3>Pot at key ages</h3>
-              <p className="tcap"><b>Paid in</b> is everything contributed up to that age, not that year's payment. {basisCaption(showToday)}</p>
+              <p className="tcap">{basisCaption(showToday)}</p>
               <div className="tbl-scroll">
                 <table>
                   <thead>
-                    <tr><th>Age</th><th>Paid in</th><th>Pot</th><th>Rate</th><th>Phase</th></tr>
+                    <tr><th>Age</th><th>Pot</th><th>Rate</th><th>Phase</th></tr>
                   </thead>
                   <tbody>
                     {potAges.map((a) => {
@@ -686,11 +756,6 @@ export default function PensionPlanner() {
                       return (
                         <tr key={a} className={a === start ? "key-row" : undefined}>
                           <td>{a}</td>
-                          <td className={r.paidIn > 0 ? undefined : "muted"}>
-                            {r.paidIn > 0
-                              ? <Cell cash={r.paidIn} today={r.paidInToday} showToday={showToday} />
-                              : "—"}
-                          </td>
                           <td><Cell cash={r.pot} today={r.potToday} showToday={showToday} /></td>
                           <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
                             {r.rate > 0 ? `${r.rate}%` : "—"}

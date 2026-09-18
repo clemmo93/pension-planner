@@ -109,6 +109,9 @@ export function project(s) {
       paidIn: contributedTotal,
       paidInToday: contributedTotalToday,
       contributionThisYear: age > s.currentAge && age < start ? contribution / (1 + s.contribGrowth / 100) : 0,
+      contributionToday: age > s.currentAge && age < start
+        ? contribution / (1 + s.contribGrowth / 100) / deflator
+        : 0,
       deflator,
     });
 
@@ -119,7 +122,7 @@ export function project(s) {
           annual: 0, annualToday: 0, monthly: 0, monthlyToday: 0,
           taxFree: 0, taxFreeToday: 0,
           paidIn: contributedTotal, paidInToday: contributedTotalToday,
-          contributionThisYear: 0,
+          contributionThisYear: 0, contributionToday: 0,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
         });
       }
