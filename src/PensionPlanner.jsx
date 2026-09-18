@@ -135,7 +135,7 @@ export default function PensionPlanner() {
   const [taxFreeYears, setTaxFreeYears] = useState(1);
   const [drawdownAge, setDrawdownAge] = useState(57);
   const [inflationRate, setInflationRate] = useState(2.5);
-  const [currentAge, setCurrentAge] = useState(35);
+  const [currentAge, setCurrentAge] = useState(30);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [drawdownPhases, setDrawdownPhases] = useState([
