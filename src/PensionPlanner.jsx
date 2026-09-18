@@ -342,7 +342,7 @@ function Chart({ years, showToday }) {
  * cash terms the payment climbs every year, but once inflation is taken out it
  * may be flat — or falling. That is invisible in a single percentage.
  */
-function ContributionTrajectory({ years }) {
+function ContributionTrajectory({ years, children }) {
   const rows = years.filter((y) => y.contributionThisYear > 0);
   if (rows.length < 2) return null;
 
@@ -401,6 +401,7 @@ function ContributionTrajectory({ years }) {
             ? <>and <b>{full(first.contributionToday)}</b> to <b>{full(last.contributionToday)}</b> in today&rsquo;s £, so you are paying in more in real terms.</>
             : <>but only <b>{full(first.contributionToday)}</b> down to <b>{full(last.contributionToday)}</b> in today&rsquo;s £ — inflation is outpacing your increases.</>}
       </p>
+      {children && <div className="after-chart">{children}</div>}
     </div>
   );
 }
@@ -535,15 +536,6 @@ export default function PensionPlanner() {
                   : "You and your employer combined, before tax relief limits."}
               />
               <Control
-                id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
-                fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
-                note={s.contribGrowth === s.inflation
-                  ? "Matching inflation — your contributions hold their value."
-                  : s.contribGrowth < s.inflation
-                    ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
-                    : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
-              />
-              <Control
                 id="growth" label="Growth rate" value={s.growth} min={0} max={12} step={0.25}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ growth: v })}
                 note={s.growth >= 8
@@ -552,7 +544,17 @@ export default function PensionPlanner() {
               />
             </div>
 
-            <ContributionTrajectory years={P.years} />
+            <ContributionTrajectory years={P.years}>
+              <Control
+                id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
+                fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
+                note={s.contribGrowth === s.inflation
+                  ? "Matching inflation — your contributions hold their value."
+                  : s.contribGrowth < s.inflation
+                    ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
+                    : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
+              />
+            </ContributionTrajectory>
 
             <div className="card">
               <h3>Inflation</h3>

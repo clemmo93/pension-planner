@@ -310,6 +310,8 @@ h2.h {
 /* --- tables --- */
 .tcap { margin: 0 0 10px; font-size: 11.5px; color: var(--ink-2); }
 .tcap b { color: var(--ink); font-weight: 600; }
+/* Controls that shape the chart above them, set off from its caption. */
+.after-chart { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .tbl-scroll { overflow-x: auto; margin: 0 -4px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 th {
