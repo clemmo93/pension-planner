@@ -3,13 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="An interactive UK pension drawdown projection tool. Model contributions, growth, tax-free lump sums and multi-phase drawdown." />
-    <meta name="theme-color" content="#0f0d09" />
+    <meta name="description" content="An interactive UK pension planner in five steps: contributions and growth, tax-free cash, drawdown phases, pot value, and the income it actually pays out — in future and today’s pounds." />
+    <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f0d09" media="(prefers-color-scheme: dark)" />
     <title>Retirement Planner</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <style>
-      html, body, #root { margin: 0; padding: 0; background: #0f0d09; }
+      html, body, #root { margin: 0; padding: 0; }
+      body { background: #f7f3ea; }
+      @media (prefers-color-scheme: dark) { body { background: #0f0d09; } }
     </style>
   </head>
   <body>

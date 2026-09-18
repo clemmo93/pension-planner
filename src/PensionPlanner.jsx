@@ -1,546 +1,754 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { project, phaseSpans, incomeStartAge, TAX_FREE_CAP, ANNUAL_ALLOWANCE, END_AGE } from "./projection.js";
 
-const formatCurrency = (val) => {
-  if (val >= 1_000_000) return `£${(val / 1_000_000).toFixed(2)}m`;
-  if (val >= 1_000) return `£${(val / 1_000).toFixed(1)}k`;
-  return `£${Math.round(val).toLocaleString()}`;
-};
+const STORE_KEY = "pension-planner.v2";
 
-const formatFull = (val) => `£${Math.round(val).toLocaleString()}`;
-
-const SliderInput = ({ label, value, onChange, min, max, step, format, suffix, description }) => (
-  <div style={{ marginBottom: 20 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-      <label style={{ fontSize: 13, fontWeight: 600, color: "#c4b08b", letterSpacing: "0.03em", fontFamily: "'DM Sans', sans-serif" }}>{label}</label>
-      <span style={{ fontSize: 18, fontWeight: 700, color: "#f0e6d2", fontFamily: "'Playfair Display', serif" }}>
-        {format ? format(value) : value}{suffix || ""}
-      </span>
-    </div>
-    {description && <div style={{ fontSize: 11, color: "#8a7e6b", marginBottom: 6 }}>{description}</div>}
-    <input
-      type="range" min={min} max={max} step={step} value={value}
-      onChange={(e) => onChange(parseFloat(e.target.value))}
-      style={{ width: "100%", accentColor: "#c4a45a" }}
-    />
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6b6252", marginTop: 2 }}>
-      <span>{format ? format(min) : min}{suffix || ""}</span>
-      <span>{format ? format(max) : max}{suffix || ""}</span>
-    </div>
-  </div>
-);
-
-const StatCard = ({ label, value, sub, accent }) => (
-  <div style={{
-    background: accent ? "linear-gradient(135deg, #2a2215 0%, #3d2e14 100%)" : "rgba(255,255,255,0.03)",
-    border: accent ? "1px solid #c4a45a33" : "1px solid rgba(255,255,255,0.06)",
-    borderRadius: 10, padding: "16px 14px", flex: 1, minWidth: 140,
-  }}>
-    <div style={{ fontSize: 11, color: "#8a7e6b", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'DM Sans', sans-serif" }}>{label}</div>
-    <div style={{ fontSize: 22, fontWeight: 700, color: accent ? "#c4a45a" : "#f0e6d2", fontFamily: "'Playfair Display', serif" }}>{value}</div>
-    {sub && <div style={{ fontSize: 11, color: "#6b6252", marginTop: 4 }}>{sub}</div>}
-  </div>
-);
-
-const PHASE_COLORS = ["#c4a45a", "#d4845a", "#8a6abf", "#5a9ac4"];
-const PHASE_LABELS = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
-
-const MiniChart = ({ data, phases, drawdownAge, width = 500, height = 180 }) => {
-  if (!data || data.length === 0) return null;
-  const maxVal = Math.max(...data.map((d) => d.total), 1);
-  const taxFreeAge = data.find((d) => d.taxFreeEvent);
-  const drawdownStart = data.find((d) => d.drawdownStart);
-  const barW = Math.max(2, (width - 60) / data.length - 2);
-
-  const getBarColor = (d) => {
-    if (d.total <= 0) return "#8a4a4a";
-    if (!d.drawingDown) return "#c4a45a";
-    const phaseIdx = d.phaseIndex ?? -1;
-    if (phaseIdx >= 0 && phaseIdx < PHASE_COLORS.length) return PHASE_COLORS[phaseIdx];
-    return "#5a8a4a";
-  };
-
-  return (
-    <div style={{ position: "relative", width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height + 40}`} style={{ width: "100%", height: "auto" }}>
-        {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-          const y = height - frac * height + 10;
-          return (
-            <g key={frac}>
-              <line x1="50" y1={y} x2={width} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-              <text x="46" y={y + 4} textAnchor="end" fill="#5a5347" fontSize="9" fontFamily="DM Sans">{formatCurrency(frac * maxVal)}</text>
-            </g>
-          );
-        })}
-        {data.map((d, i) => {
-          const barH = (d.total / maxVal) * height;
-          const x = 55 + i * ((width - 60) / data.length);
-          const y = height - barH + 10;
-          return (
-            <g key={i}>
-              <rect x={x} y={y} width={barW} height={Math.max(barH, 0)} fill={getBarColor(d)} rx="1" opacity={0.85} />
-              {d.age % 5 === 0 && (
-                <text x={x + barW / 2} y={height + 24} textAnchor="middle" fill="#6b6252" fontSize="9" fontFamily="DM Sans">{d.age}</text>
-              )}
-            </g>
-          );
-        })}
-        {/* Real value line overlay */}
-        {(() => {
-          const points = data.map((d, i) => {
-            const x = 55 + i * ((width - 60) / data.length) + barW / 2;
-            const y = height - (d.realValue / maxVal) * height + 10;
-            return `${x},${Math.max(y, 10)}`;
-          }).join(" ");
-          return (
-            <polyline
-              points={points}
-              fill="none"
-              stroke="rgba(255,255,255,0.45)"
-              strokeWidth="1.5"
-              strokeDasharray="4,3"
-              strokeLinejoin="round"
-            />
-          );
-        })()}
-        {taxFreeAge && (() => {
-          const cx = 55 + data.indexOf(taxFreeAge) * ((width - 60) / data.length) + barW / 2;
-          return (
-            <g>
-              <line x1={cx} y1={10} x2={cx} y2={height + 10} stroke="#e8c84a" strokeWidth="1" strokeDasharray="3,3" />
-              <text x={cx} y={6} textAnchor="middle" fill="#e8c84a" fontSize="8" fontFamily="DM Sans" fontWeight="600">Tax-free</text>
-            </g>
-          );
-        })()}
-        {drawdownStart && (() => {
-          const cx = 55 + data.indexOf(drawdownStart) * ((width - 60) / data.length) + barW / 2;
-          return (
-            <g>
-              <line x1={cx} y1={10} x2={cx} y2={height + 10} stroke="#5a8a4a" strokeWidth="1" strokeDasharray="3,3" />
-              <text x={cx} y={6} textAnchor="middle" fill="#5a8a4a" fontSize="8" fontFamily="DM Sans" fontWeight="600">Drawdown</text>
-            </g>
-          );
-        })()}
-      </svg>
-    </div>
-  );
-};
-
-export default function PensionPlanner() {
-  const [currentPot, setCurrentPot] = useState(100000);
-  const [annualContrib, setAnnualContrib] = useState(10000);
-  const [contribGrowthRate, setContribGrowthRate] = useState(2);
-  const [growthRate, setGrowthRate] = useState(6);
-  const [taxFreePercent, setTaxFreePercent] = useState(25);
-  const [taxFreeTakeAge, setTaxFreeTakeAge] = useState(57);
-  const [taxFreeYears, setTaxFreeYears] = useState(1);
-  const [drawdownAge, setDrawdownAge] = useState(57);
-  const [inflationRate, setInflationRate] = useState(2.5);
-  const [currentAge, setCurrentAge] = useState(30);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const [drawdownPhases, setDrawdownPhases] = useState([
+const DEFAULTS = {
+  currentAge: 30,
+  currentPot: 100000,
+  annualContrib: 10000,
+  growth: 6,
+  contribGrowth: 2,
+  inflation: 2.5,
+  taxFreePct: 25,
+  taxFreeTakeAge: 57,
+  taxFreeYears: 1,
+  drawdownAge: 57,
+  phases: [
     { rate: 6, years: 10, label: "Active early retirement" },
     { rate: 5, years: 10, label: "Standard drawdown" },
     { rate: 4, years: 8, label: "Later retirement" },
     { rate: 3, years: 99, label: "Late stage" },
-  ]);
+  ],
+  // Today's £ leads by default: the inflation-adjusted figure is the honest
+  // answer to "what will this actually buy?".
+  showToday: true,
+};
 
-  const updatePhase = (idx, field, value) => {
-    setDrawdownPhases((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch {
+    // Private browsing, blocked storage — fall through to defaults.
+  }
+  return DEFAULTS;
+}
+
+function saveState(s) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  } catch {
+    // Nothing to do; the planner works fine without persistence.
+  }
+}
+
+const money = (v) => {
+  const n = Math.round(v);
+  if (Math.abs(n) >= 1_000_000) return `£${(n / 1_000_000).toFixed(2)}m`;
+  if (Math.abs(n) >= 10_000) return `£${Math.round(n / 1000)}k`;
+  return `£${n.toLocaleString("en-GB")}`;
+};
+const full = (v) => `£${Math.round(v).toLocaleString("en-GB")}`;
+const parseMoney = (str) => {
+  const n = parseFloat(String(str).replace(/[^0-9.-]/g, ""));
+  return Number.isNaN(n) ? null : n;
+};
+const phaseVar = (i) => `var(--p${Math.min(i + 1, 4)})`;
+
+const STEPS = [
+  { n: "01", t: "You" },
+  { n: "02", t: "Access" },
+  { n: "03", t: "Spending" },
+  { n: "04", t: "Pot value" },
+  { n: "05", t: "Income" },
+];
+
+/* ------------------------------------------------------------------ control */
+
+function Control({ id, label, value, onChange, min, max, step, fmt, note, typed, hardMax }) {
+  const [draft, setDraft] = useState(null);
+  const shown = draft !== null ? draft : fmt(value);
+
+  const commit = () => {
+    const n = parseMoney(draft);
+    setDraft(null);
+    if (n === null) return;
+    onChange(Math.max(min, Math.min(hardMax ?? max, n)));
   };
-
-  const addPhase = () => {
-    if (drawdownPhases.length < 4) {
-      setDrawdownPhases((prev) => [...prev, { rate: 3, years: 99, label: "New phase" }]);
-    }
-  };
-
-  const removePhase = (idx) => {
-    if (drawdownPhases.length > 1) {
-      setDrawdownPhases((prev) => prev.filter((_, i) => i !== idx));
-    }
-  };
-
-  const projection = useMemo(() => {
-    const years = [];
-    let pot = currentPot;
-    let contrib = annualContrib;
-    let totalTaxFree = 0;
-    let taxFreeComplete = false;
-    let taxFreeStarted = false;
-    let totalContributions = 0;
-    let peakValue = currentPot;
-    let annualDrawdown = 0;
-
-    // Pre-calculate: at the start age, snapshot the pot to determine total tax-free entitlement
-    // We'll calculate this on the fly when we first hit taxFreeTakeAge
-    let taxFreeEntitlement = 0;
-    let taxFreePerYear = 0;
-    let taxFreeYearsTaken = 0;
-
-    const drawdownMap = {};
-    let phaseStartAge = drawdownAge;
-    for (let pi = 0; pi < drawdownPhases.length; pi++) {
-      const phase = drawdownPhases[pi];
-      const isLast = pi === drawdownPhases.length - 1;
-      const endAge = isLast ? 999 : phaseStartAge + phase.years;
-      for (let a = phaseStartAge; a < endAge && a <= 90; a++) {
-        drawdownMap[a] = { rate: phase.rate, phaseIndex: pi };
-      }
-      phaseStartAge = endAge;
-    }
-
-    for (let age = currentAge; age <= 90; age++) {
-      const isTaxFreePhase = age >= taxFreeTakeAge && age < taxFreeTakeAge + taxFreeYears && !taxFreeComplete;
-      const isDrawingDown = age >= drawdownAge && (taxFreeComplete || (taxFreeStarted && age >= taxFreeTakeAge));
-      const phaseInfo = drawdownMap[age] || { rate: drawdownPhases[drawdownPhases.length - 1]?.rate || 4, phaseIndex: drawdownPhases.length - 1 };
-
-      // Contributions (before tax-free starts and before drawdown)
-      if (age > currentAge && age < Math.max(taxFreeTakeAge, drawdownAge)) {
-        pot += contrib;
-        totalContributions += contrib;
-        contrib *= 1 + contribGrowthRate / 100;
-      }
-
-      // Growth
-      if (age > currentAge) {
-        pot *= 1 + growthRate / 100;
-      }
-
-      // Calculate tax-free entitlement on the first year
-      if (age === taxFreeTakeAge && !taxFreeStarted) {
-        taxFreeEntitlement = Math.min(pot * (taxFreePercent / 100), 268275);
-        taxFreePerYear = taxFreeEntitlement / taxFreeYears;
-        taxFreeStarted = true;
-      }
-
-      // Take this year's tax-free tranche
-      let thisYearTaxFree = 0;
-      if (isTaxFreePhase && taxFreeStarted && taxFreeYearsTaken < taxFreeYears) {
-        thisYearTaxFree = Math.min(taxFreePerYear, pot);
-        pot -= thisYearTaxFree;
-        totalTaxFree += thisYearTaxFree;
-        taxFreeYearsTaken++;
-        if (taxFreeYearsTaken >= taxFreeYears) {
-          taxFreeComplete = true;
-        }
-      }
-
-      // Drawdown (can run alongside phased tax-free from drawdownAge)
-      if (isDrawingDown && pot > 0) {
-        annualDrawdown = pot * (phaseInfo.rate / 100);
-        pot -= annualDrawdown;
-      } else {
-        annualDrawdown = 0;
-      }
-
-      if (pot > peakValue) peakValue = pot;
-
-      const yearsFromNow = age - currentAge;
-      const realValue = pot / Math.pow(1 + inflationRate / 100, yearsFromNow);
-      const realDrawdown = annualDrawdown / Math.pow(1 + inflationRate / 100, yearsFromNow);
-
-      years.push({
-        age,
-        total: Math.max(pot, 0),
-        realValue: Math.max(realValue, 0),
-        contributions: totalContributions,
-        taxFreeEvent: thisYearTaxFree > 0,
-        taxFreeAmount: thisYearTaxFree,
-        drawdownStart: age === drawdownAge && (taxFreeComplete || taxFreeStarted),
-        drawingDown: isDrawingDown,
-        phaseIndex: isDrawingDown ? phaseInfo.phaseIndex : -1,
-        currentRate: isDrawingDown ? phaseInfo.rate : 0,
-        annualDrawdown: isDrawingDown ? annualDrawdown : 0,
-        realDrawdown: isDrawingDown ? realDrawdown : 0,
-        monthlyDrawdown: isDrawingDown ? annualDrawdown / 12 : 0,
-        realMonthlyDrawdown: isDrawingDown ? realDrawdown / 12 : 0,
-      });
-
-      if (pot <= 0 && isDrawingDown) {
-        for (let a = age + 1; a <= 90; a++) {
-          years.push({
-            age: a, total: 0, realValue: 0, contributions: totalContributions,
-            taxFreeEvent: false, taxFreeAmount: 0, drawdownStart: false,
-            drawingDown: true, phaseIndex: -1, currentRate: 0,
-            annualDrawdown: 0, realDrawdown: 0, monthlyDrawdown: 0, realMonthlyDrawdown: 0,
-          });
-        }
-        break;
-      }
-    }
-    return { years, taxFreeAmount: totalTaxFree, peakValue, totalContributions };
-  }, [currentPot, annualContrib, contribGrowthRate, growthRate, taxFreePercent, taxFreeTakeAge, taxFreeYears, drawdownAge, drawdownPhases, inflationRate, currentAge]);
-
-  const at75 = projection.years.find((y) => y.age === 75);
-  const depletionYear = projection.years.find((y) => y.drawingDown && y.total <= 0);
-  const firstDrawdown = projection.years.find((y) => y.annualDrawdown > 0);
-  const atRetirement = projection.years.find((y) => y.age === drawdownAge);
-
-  const phaseSummary = useMemo(() => {
-    let startAge = drawdownAge;
-    return drawdownPhases.map((p, i) => {
-      const isLast = i === drawdownPhases.length - 1;
-      const endAge = isLast ? "90+" : startAge + p.years;
-      const summary = { ...p, startAge, endAge, index: i };
-      startAge = isLast ? 999 : startAge + p.years;
-      return summary;
-    });
-  }, [drawdownPhases, drawdownAge]);
-
-  const cardStyle = {
-    background: "rgba(255,255,255,0.02)",
-    border: "1px solid rgba(255,255,255,0.06)",
-    borderRadius: 12, padding: 20, marginBottom: 16,
-  };
-
-  const sectionTitle = (text) => (
-    <div style={{ fontSize: 12, fontWeight: 600, color: "#8a7e6b", marginBottom: 16, letterSpacing: "0.08em", textTransform: "uppercase" }}>{text}</div>
-  );
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(170deg, #0f0d09 0%, #1a1610 40%, #0f0d09 100%)",
-      color: "#f0e6d2", fontFamily: "'DM Sans', sans-serif", padding: "20px 16px",
-    }}>
-      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <div className="ctl">
+      <div className="ctl-head">
+        <label htmlFor={id}>{label}</label>
+        <span className="ctl-val">
+          {typed ? (
+            <input
+              type="text"
+              inputMode="numeric"
+              id={`${id}-text`}
+              aria-label={`${label}, type a value`}
+              value={shown}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            />
+          ) : (
+            <span className="ro">{fmt(value)}</span>
+          )}
+        </span>
+      </div>
+      <div className="ctl-note" id={`${id}-note`}>{note}</div>
+      <input
+        type="range" id={id}
+        min={min} max={max} step={step} value={value}
+        aria-describedby={`${id}-note`}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+      />
+      <div className="ctl-ends"><span>{fmt(min)}</span><span>{fmt(max)}</span></div>
+    </div>
+  );
+}
 
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", color: "#c4a45a", textTransform: "uppercase", marginBottom: 8 }}>Pension Projection</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700, margin: 0, color: "#f0e6d2", lineHeight: 1.2 }}>Retirement Planner</h1>
-          <div style={{ fontSize: 12, color: "#6b6252", marginTop: 6 }}>Age {currentAge} · Current pot {formatFull(currentPot)}</div>
-        </div>
+/* ------------------------------------------------------------- dual figures */
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-          <StatCard label="At Drawdown" value={atRetirement ? formatCurrency(atRetirement.total) : "—"} sub={atRetirement ? `Age ${drawdownAge} · Real: ${formatCurrency(atRetirement.realValue)}` : ""} accent />
-          <StatCard label="Tax-Free Lump" value={formatCurrency(projection.taxFreeAmount)} sub={taxFreeYears > 1 ? `${taxFreePercent}% over ages ${taxFreeTakeAge}–${taxFreeTakeAge + taxFreeYears - 1}` : `${taxFreePercent}% at age ${taxFreeTakeAge}`} />
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
-          <StatCard
-            label="Initial Monthly"
-            value={firstDrawdown ? formatCurrency(firstDrawdown.monthlyDrawdown) : "—"}
-            sub={firstDrawdown ? `${firstDrawdown.currentRate}% rate · Real: ${formatCurrency(firstDrawdown.realMonthlyDrawdown)}/mo` : ""}
-            accent
+/** Every money cell shows both bases; the toggle decides which one leads. */
+function Cell({ cash, today, showToday, fmt = money }) {
+  const lead = showToday ? today : cash;
+  const sub = showToday ? cash : today;
+  return (
+    <>
+      <span className="main">{fmt(lead)}</span>
+      <span className="alt">{fmt(sub)}</span>
+    </>
+  );
+}
+
+function basisCaption(showToday) {
+  return showToday ? (
+    <>Large figure is <b>today&rsquo;s £</b> &mdash; what it buys in {new Date().getFullYear()} money. Future £ beneath.</>
+  ) : (
+    <>Large figure is <b>future £</b> &mdash; the cash at that date. Today&rsquo;s £ beneath.</>
+  );
+}
+
+/* ------------------------------------------------------------------- charts */
+
+function Spark({ years, showToday }) {
+  const W = 104, H = 38;
+  const vals = years.map((y) => (showToday ? y.potToday : y.pot));
+  const max = Math.max(...vals, 1);
+  const bw = Math.max(W / years.length - 0.6, 0.8);
+  return (
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      {years.map((y, i) => {
+        const v = showToday ? y.potToday : y.pot;
+        const h = (v / max) * (H - 4);
+        return (
+          <rect
+            key={y.age} x={i * (W / years.length)} y={H - h - 2}
+            width={bw} height={Math.max(h, 0.6)} opacity=".85"
+            style={{ fill: !y.drawing ? "var(--accent-2)" : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)" }}
           />
-          <StatCard
-            label={depletionYear ? "Pot Depleted" : "Pot at 75"}
-            value={depletionYear ? `Age ${depletionYear.age}` : at75 ? formatCurrency(at75.total) : "—"}
-            sub={depletionYear ? "Consider reducing drawdown" : at75 ? `Real: ${formatCurrency(at75.realValue)}` : ""}
+        );
+      })}
+    </svg>
+  );
+}
+
+function Chart({ years, showToday }) {
+  const [hover, setHover] = useState(null);
+  const ref = useRef(null);
+  const W = 520, H = 236, padL = 48, padR = 8, padT = 32, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const n = years.length;
+  const vals = years.map((y) => (showToday ? y.potToday : y.pot));
+  const max = Math.max(...vals, 1);
+  const bw = Math.max(1.5, plotW / n - 1.5);
+  const xOf = (i) => padL + i * (plotW / n);
+
+  const pick = (clientX) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    const frac = ((clientX - r.left) / r.width * W - padL) / plotW;
+    const i = Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1))));
+    setHover(years[i].age);
+  };
+
+  const marks = [];
+  const tf = years.findIndex((y) => y.taxFree > 0);
+  const dd = years.findIndex((y) => y.drawing);
+  if (tf >= 0) marks.push({ i: tf, color: "var(--accent)", label: "Tax-free cash", row: 0 });
+  if (dd >= 0) marks.push({ i: dd, color: "var(--good)", label: "Income begins", row: 1 });
+
+  const row = hover === null ? null : years.find((y) => y.age === hover);
+
+  return (
+    <div className="chart-wrap">
+      <svg
+        ref={ref} viewBox={`0 0 ${W} ${H}`} role="img"
+        aria-label={`Projected pension pot from age ${years[0]?.age} to ${END_AGE}`}
+        onMouseMove={(e) => pick(e.clientX)}
+        onMouseLeave={() => setHover(null)}
+        onTouchMove={(e) => pick(e.touches[0].clientX)}
+      >
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+          const y = padT + plotH - f * plotH;
+          return (
+            <g key={f}>
+              <line x1={padL} y1={y} x2={W - padR} y2={y} style={{ stroke: "var(--grid)" }} strokeWidth="1" />
+              <text x={padL - 6} y={y + 3.5} textAnchor="end" fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>
+                {money(f * max)}
+              </text>
+            </g>
+          );
+        })}
+
+        {years.map((y, i) => {
+          const v = showToday ? y.potToday : y.pot;
+          const h = (v / max) * plotH;
+          return (
+            <g key={y.age}>
+              <rect
+                x={xOf(i)} y={padT + plotH - h} width={bw} height={Math.max(h, 0)} rx="1"
+                opacity={hover !== null && y.age !== hover ? 0.42 : 0.92}
+                style={{ fill: !y.drawing ? "var(--accent-2)" : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)" }}
+              />
+              {y.age % 10 === 0 && (
+                <text x={xOf(i) + bw / 2} y={H - 10} textAnchor="middle" fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>
+                  {y.age}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {!showToday && (
+          <polyline
+            fill="none" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round"
+            style={{ stroke: "var(--ink-3)" }}
+            points={years.map((y, i) => `${xOf(i) + bw / 2},${Math.max(padT + plotH - (y.potToday / max) * plotH, padT)}`).join(" ")}
           />
-        </div>
-
-        <div style={{ ...cardStyle, padding: "16px 12px 8px", marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#8a7e6b", marginBottom: 8, paddingLeft: 4 }}>POT VALUE OVER TIME</div>
-          <MiniChart data={projection.years} phases={drawdownPhases} drawdownAge={drawdownAge} />
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8, fontSize: 10, color: "#6b6252", flexWrap: "wrap" }}>
-            <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#c4a45a", marginRight: 4, verticalAlign: "middle" }} />Growth</span>
-            {drawdownPhases.map((p, i) => (
-              <span key={i}><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: PHASE_COLORS[i], marginRight: 4, verticalAlign: "middle" }} />{p.label || PHASE_LABELS[i]} ({p.rate}%)</span>
-            ))}
-            <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#8a4a4a", marginRight: 4, verticalAlign: "middle" }} />Depleted</span>
-            <span><span style={{ display: "inline-block", width: 14, height: 0, borderTop: "1.5px dashed rgba(255,255,255,0.45)", marginRight: 4, verticalAlign: "middle" }} />Real value</span>
-          </div>
-        </div>
-
-        {/* Phase Timeline Bar */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#8a7e6b", marginBottom: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>Drawdown Phase Timeline</div>
-          <div style={{ display: "flex", gap: 2, height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 16 }}>
-            {phaseSummary.map((p, i) => {
-              const totalYears = 90 - drawdownAge;
-              const phaseYears = i === drawdownPhases.length - 1 ? 90 - p.startAge : p.years;
-              const pct = (phaseYears / totalYears) * 100;
-              return <div key={i} style={{ width: `${pct}%`, background: PHASE_COLORS[i], opacity: 0.7 }} />;
-            })}
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 11, color: "#8a7e6b" }}>
-            {phaseSummary.map((p, i) => (
-              <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 2, background: PHASE_COLORS[i] }} />
-                Age {p.startAge}–{p.endAge}: {p.rate}%
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div style={cardStyle}>
-          {sectionTitle("Contributions & Growth")}
-          <SliderInput label="Your Age" value={currentAge} onChange={setCurrentAge} min={18} max={54} step={1} description="Projections run from this age through to 90" />
-          <SliderInput label="Current Pot Value" value={currentPot} onChange={setCurrentPot} min={0} max={1000000} step={5000} format={formatFull} />
-          <SliderInput label="Annual Contributions" value={annualContrib} onChange={setAnnualContrib} min={0} max={60000} step={500} format={formatFull} description="Your + employer combined annual contributions" />
-          <SliderInput label="Annual Growth Rate" value={growthRate} onChange={setGrowthRate} min={0} max={12} step={0.5} suffix="%" description="Expected annual investment return before fees" />
-        </div>
-
-        <div style={cardStyle}>
-          {sectionTitle("Tax-Free Lump Sum")}
-          <SliderInput label="Tax-Free %" value={taxFreePercent} onChange={setTaxFreePercent} min={0} max={25} step={1} suffix="%" description="Currently max 25% (capped at £268,275)" />
-          <SliderInput label="Start Age" value={taxFreeTakeAge} onChange={setTaxFreeTakeAge} min={55} max={75} step={1} description="Minimum pension access age rises to 57 in 2028" />
-          <SliderInput label="Spread Over" value={taxFreeYears} onChange={setTaxFreeYears} min={1} max={15} step={1} suffix={taxFreeYears === 1 ? " year" : " years"} description={taxFreeYears > 1 ? `Phased crystallisation: ${formatCurrency(projection.taxFreeAmount / taxFreeYears)}/yr over ages ${taxFreeTakeAge}–${taxFreeTakeAge + taxFreeYears - 1}` : "Take it all in one go, or spread over multiple years"} />
-        </div>
-
-        {/* Multi-Phase Drawdown */}
-        <div style={cardStyle}>
-          {sectionTitle("Drawdown Phases")}
-          <SliderInput label="Drawdown Start Age" value={drawdownAge} onChange={setDrawdownAge} min={55} max={75} step={1} description="When you start taking regular income" />
-
-          <div style={{ marginTop: 8 }}>
-            {drawdownPhases.map((phase, idx) => {
-              const isLast = idx === drawdownPhases.length - 1;
-              return (
-                <div key={idx} style={{
-                  background: `${PHASE_COLORS[idx]}08`,
-                  border: `1px solid ${PHASE_COLORS[idx]}22`,
-                  borderRadius: 10,
-                  padding: "14px 14px 6px",
-                  marginBottom: 12,
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 3, background: PHASE_COLORS[idx] }} />
-                      <input
-                        type="text"
-                        value={phase.label}
-                        onChange={(e) => updatePhase(idx, "label", e.target.value)}
-                        style={{
-                          background: "transparent", border: "none", color: "#f0e6d2",
-                          fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
-                          outline: "none", width: 180, padding: 0,
-                        }}
-                      />
-                    </div>
-                    {drawdownPhases.length > 1 && (
-                      <button
-                        onClick={() => removePhase(idx)}
-                        style={{
-                          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: 6, color: "#8a7e6b", fontSize: 11, padding: "3px 8px",
-                          cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                        }}
-                      >Remove</button>
-                    )}
-                  </div>
-
-                  <SliderInput
-                    label="Withdrawal Rate"
-                    value={phase.rate}
-                    onChange={(v) => updatePhase(idx, "rate", v)}
-                    min={1} max={15} step={0.5} suffix="%"
-                    description={phase.rate > 6 ? "High rate — pot will deplete faster" : phase.rate <= 4 ? "Conservative sustainable rate" : "Moderate withdrawal rate"}
-                  />
-
-                  {!isLast && (
-                    <SliderInput
-                      label="Duration"
-                      value={phase.years}
-                      onChange={(v) => updatePhase(idx, "years", v)}
-                      min={1} max={30} step={1}
-                      suffix=" yrs"
-                      description={`Ages ${phaseSummary[idx]?.startAge}–${phaseSummary[idx]?.endAge}`}
-                    />
-                  )}
-
-                  {isLast && (
-                    <div style={{ fontSize: 11, color: "#6b6252", marginBottom: 10, paddingLeft: 2 }}>
-                      Final phase — runs from age {phaseSummary[idx]?.startAge} until pot depleted or age 90
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {drawdownPhases.length < 4 && (
-              <button
-                onClick={addPhase}
-                style={{
-                  width: "100%", background: "rgba(196,164,90,0.06)",
-                  border: "1px dashed rgba(196,164,90,0.25)", borderRadius: 10,
-                  padding: "12px", color: "#c4a45a", fontSize: 12, fontWeight: 600,
-                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.03em",
-                }}
-              >+ Add Drawdown Phase</button>
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          style={{
-            width: "100%", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 12, padding: "14px 20px", color: "#8a7e6b", fontSize: 12, fontWeight: 600,
-            letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", marginBottom: 16,
-            display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "'DM Sans', sans-serif",
-          }}
-        >
-          <span>Advanced Assumptions</span>
-          <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>▼</span>
-        </button>
-
-        {showAdvanced && (
-          <div style={cardStyle}>
-            <SliderInput label="Inflation Rate" value={inflationRate} onChange={setInflationRate} min={0} max={6} step={0.5} suffix="%" description="Used to calculate 'real' values in today's money" />
-            <SliderInput label="Contribution Growth Rate" value={contribGrowthRate} onChange={setContribGrowthRate} min={0} max={10} step={0.5} suffix="%" description="Annual increase in your contributions (e.g. salary rises)" />
-          </div>
         )}
 
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          {sectionTitle("Milestones")}
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                  <th style={{ textAlign: "left", padding: "8px 4px", color: "#6b6252", fontWeight: 600, fontSize: 11 }}>Age</th>
-                  <th style={{ textAlign: "right", padding: "8px 4px", color: "#6b6252", fontWeight: 600, fontSize: 11 }}>Pot</th>
-                  <th style={{ textAlign: "right", padding: "8px 4px", color: "#6b6252", fontWeight: 600, fontSize: 11 }}>Real Pot</th>
-                  <th style={{ textAlign: "right", padding: "8px 4px", color: "#6b6252", fontWeight: 600, fontSize: 11 }}>Rate</th>
-                  <th style={{ textAlign: "right", padding: "8px 4px", color: "#6b6252", fontWeight: 600, fontSize: 11 }}>Monthly</th>
-                  <th style={{ textAlign: "right", padding: "8px 4px", color: "#6b6252", fontWeight: 600, fontSize: 11 }}>Real Mo.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[40, 50, 57, 60, 65, 67, 70, 75, 80, 85, 90].map((targetAge) => {
-                  const row = projection.years.find((y) => y.age === targetAge);
-                  if (!row) return null;
-                  const phaseColor = row.phaseIndex >= 0 ? PHASE_COLORS[row.phaseIndex] : null;
-                  return (
-                    <tr key={targetAge} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                      <td style={{ padding: "8px 4px", color: targetAge === drawdownAge ? "#c4a45a" : "#f0e6d2", fontWeight: targetAge === drawdownAge ? 700 : 400 }}>{targetAge}</td>
-                      <td style={{ textAlign: "right", padding: "8px 4px", color: "#f0e6d2" }}>{formatCurrency(row.total)}</td>
-                      <td style={{ textAlign: "right", padding: "8px 4px", color: "#8a7e6b" }}>{formatCurrency(row.realValue)}</td>
-                      <td style={{ textAlign: "right", padding: "8px 4px", color: phaseColor || "#3a3628" }}>
-                        {row.currentRate > 0 ? `${row.currentRate}%` : "—"}
-                      </td>
-                      <td style={{ textAlign: "right", padding: "8px 4px", color: row.monthlyDrawdown > 0 ? (phaseColor || "#5a8a4a") : "#3a3628" }}>
-                        {row.monthlyDrawdown > 0 ? formatCurrency(row.monthlyDrawdown) : "—"}
-                      </td>
-                      <td style={{ textAlign: "right", padding: "8px 4px", color: row.realMonthlyDrawdown > 0 ? "#8a7e6b" : "#3a3628" }}>
-                        {row.realMonthlyDrawdown > 0 ? formatCurrency(row.realMonthlyDrawdown) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {marks.map((m) => {
+          const x = xOf(m.i) + bw / 2;
+          const ly = 13 + m.row * 12;
+          const anchor = x > W - 70 ? "end" : x < padL + 40 ? "start" : "middle";
+          return (
+            <g key={m.label}>
+              <line x1={x} y1={ly + 3} x2={x} y2={padT + plotH} style={{ stroke: m.color }} strokeWidth="1" strokeDasharray="3,3" />
+              <text
+                x={anchor === "end" ? x - 4 : anchor === "start" ? x + 4 : x} y={ly}
+                textAnchor={anchor} fontSize="8.5" fontWeight="600"
+                fontFamily="DM Sans, sans-serif" style={{ fill: m.color }}
+              >
+                {m.label}
+              </text>
+            </g>
+          );
+        })}
 
-        <div style={{
-          background: "rgba(196,164,90,0.06)", border: "1px solid rgba(196,164,90,0.15)",
-          borderRadius: 10, padding: 16, fontSize: 12, color: "#8a7e6b", lineHeight: 1.7, marginBottom: 32,
-        }}>
-          <div style={{ fontWeight: 700, color: "#c4a45a", marginBottom: 8, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>Key Assumptions & Notes</div>
-          <div>• Growth is applied annually after contributions. Real values are adjusted for {inflationRate}% inflation.</div>
-          <div>• Tax-free lump sum can be taken in one go or phased over multiple years (phased crystallisation). Each tranche crystallises 25% tax-free. Total capped at £268,275.</div>
-          <div>• Drawdown phases apply sequentially. The final phase runs indefinitely until the pot is depleted or age 90.</div>
-          <div>• Withdrawals beyond the tax-free portion are taxed as income — your effective rate depends on other income sources.</div>
-          <div>• This model does not include State Pension (currently ~£11,500/yr from age 67), which would supplement drawdown income.</div>
-          <div>• Platform fees and fund charges (typically 0.3–0.8% combined) are not deducted — reduce growth rate to account for these.</div>
-          <div>• The Annual Allowance for tax-relieved contributions is currently £60,000/yr.</div>
-          <div>• From April 2027, pensions will be subject to Inheritance Tax — consider estate planning implications.</div>
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(196,164,90,0.15)", color: "#6b6252" }}>Not financial advice. This is a simplified projection for exploring scenarios — speak to a regulated financial adviser before making decisions about your pension.</div>
-        </div>
+        {row && (
+          <line
+            x1={xOf(years.indexOf(row)) + bw / 2} y1={padT}
+            x2={xOf(years.indexOf(row)) + bw / 2} y2={padT + plotH}
+            style={{ stroke: "var(--ink)" }} strokeWidth="1" opacity=".5"
+          />
+        )}
+      </svg>
+
+      <div className="readout">
+        {!row ? (
+          <span>Hover or drag across the chart to read any year.</span>
+        ) : (
+          <>
+            <span>Age <b>{row.age}</b></span>
+            <span>Pot <b>{full(showToday ? row.potToday : row.pot)}</b></span>
+            {row.annual > 0 ? (
+              <span>Income <b>{full(showToday ? row.monthlyToday : row.monthly)}</b>/mo at {row.rate}%</span>
+            ) : (
+              <span className="muted">Still building</span>
+            )}
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+/* --------------------------------------------------------------------- app */
+
+export default function PensionPlanner() {
+  const [s, setS] = useState(loadState);
+  const [step, setStep] = useState(0);
+
+  const update = (patch) => setS((prev) => {
+    const next = { ...prev, ...patch };
+    saveState(next);
+    return next;
+  });
+
+  const updatePhase = (i, patch) => update({
+    phases: s.phases.map((p, j) => (j === i ? { ...p, ...patch } : p)),
+  });
+
+  const P = useMemo(() => project(s), [s]);
+  const spans = useMemo(() => phaseSpans(s), [s]);
+  const start = incomeStartAge(s);
+  const showToday = s.showToday;
+
+  const go = (i) => {
+    setStep(Math.max(0, Math.min(STEPS.length - 1, i)));
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
+  const { depleted, firstIncome, atRetirement } = P;
+  const chipClass = depleted ? (depleted.age < 80 ? "is-crit" : "is-warn") : "is-good";
+
+  const incomeRows = P.years.filter((y) => y.annual > 0 || y.taxFree > 0);
+  const totals = incomeRows.reduce((a, r) => ({
+    cash: a.cash + r.annual, today: a.today + r.annualToday,
+    tfCash: a.tfCash + r.taxFree, tfToday: a.tfToday + r.taxFreeToday,
+  }), { cash: 0, today: 0, tfCash: 0, tfToday: 0 });
+
+  const potAges = [40, 50, 55, 57, 60, 65, 67, 70, 75, 80, 85, 90].filter((a) => a >= s.currentAge);
+
+  return (
+    <>
+      <div className="verdict">
+        <div className="verdict-in">
+          <div className="verdict-top">
+            <span className={`chip ${chipClass}`}>
+              <span className="dot" />
+              {depleted ? `Runs dry at ${depleted.age}` : `Lasts beyond ${END_AGE}`}
+            </span>
+            <div className="basis" role="group" aria-label="Measure amounts in">
+              <button
+                type="button" aria-pressed={!showToday}
+                title="Pounds as they would appear at that future date"
+                onClick={() => update({ showToday: false })}
+              >Future £</button>
+              <button
+                type="button" aria-pressed={showToday}
+                title="The same sum in today's buying power"
+                onClick={() => update({ showToday: true })}
+              >Today&rsquo;s £</button>
+            </div>
+          </div>
+          <div className="verdict-figs">
+            <span className="fig">
+              <span className="k">Monthly income</span>
+              <span className="v">{firstIncome ? full(showToday ? firstIncome.monthlyToday : firstIncome.monthly) : "—"}</span>
+              <span className="s">{firstIncome ? `a month from ${firstIncome.age}, at ${firstIncome.rate}%` : "set a drawdown age"}</span>
+            </span>
+            <span className="fig">
+              <span className="k">Pot at retirement</span>
+              <span className="v">{atRetirement ? money(showToday ? atRetirement.potToday : atRetirement.pot) : "—"}</span>
+              <span className="s">{atRetirement ? `at ${start}, in ${showToday ? "today’s" : "future"} £` : "—"}</span>
+            </span>
+            <Spark years={P.years} showToday={showToday} />
+          </div>
+        </div>
+      </div>
+
+      <div className="wrap">
+        <nav className="steps" aria-label="Planning steps">
+          {STEPS.map((st, i) => (
+            <button key={st.n} type="button" aria-current={i === step ? "step" : undefined} onClick={() => go(i)}>
+              <span className="n">{st.n}</span>
+              <span className="t">{st.t}</span>
+            </button>
+          ))}
+        </nav>
+
+        {step === 0 && (
+          <section aria-labelledby="h0">
+            <h2 className="h" id="h0">Where you are now</h2>
+            <p className="lede">
+              Four numbers decide almost everything that follows. <strong>Growth matters most</strong> — a
+              single percentage point, compounded over thirty years, moves the final pot more than any
+              other choice on this page.
+            </p>
+            <div className="echo">
+              <span className="e">
+                <span className="k">Pot at {start}</span>
+                <span className="v">{atRetirement ? money(atRetirement.pot) : "—"}</span>
+                <span className="s">{atRetirement ? `${money(atRetirement.potToday)} in today’s £` : ""}</span>
+              </span>
+              <span className="e">
+                <span className="k">You will have paid in</span>
+                <span className="v">{money(P.contributedTotal)}</span>
+                <span className="s">over {Math.max(start - s.currentAge, 0)} years</span>
+              </span>
+            </div>
+
+            <div className="card">
+              <h3>Your position</h3>
+              <Control
+                id="age" label="Your age" value={s.currentAge} min={18} max={54} step={1}
+                fmt={(v) => String(v)} onChange={(v) => update({ currentAge: v })}
+                note={`Projection runs from ${s.currentAge} to ${END_AGE} — ${END_AGE - s.currentAge} years.`}
+              />
+              <Control
+                id="pot" label="Current pot" value={s.currentPot} min={0} max={1000000} step={1000}
+                fmt={full} typed hardMax={5000000} onChange={(v) => update({ currentPot: v })}
+                note="Type an exact figure if the slider can’t reach it."
+              />
+              <Control
+                id="contrib" label="Annual contributions" value={s.annualContrib} min={0} max={ANNUAL_ALLOWANCE} step={250}
+                fmt={full} typed hardMax={ANNUAL_ALLOWANCE} onChange={(v) => update({ annualContrib: v })}
+                note={s.annualContrib >= ANNUAL_ALLOWANCE
+                  ? `At the ${full(ANNUAL_ALLOWANCE)} annual allowance.`
+                  : "You and your employer combined, before tax relief limits."}
+              />
+              <Control
+                id="growth" label="Growth rate" value={s.growth} min={0} max={12} step={0.25}
+                fmt={(v) => `${v}%`} onChange={(v) => update({ growth: v })}
+                note={s.growth >= 8
+                  ? "Optimistic for a long horizon — fees are not deducted."
+                  : "Before platform and fund charges of roughly 0.3–0.8%."}
+              />
+            </div>
+
+            <div className="card">
+              <h3>Assumptions</h3>
+              <Control
+                id="inflation" label="Inflation" value={s.inflation} min={0} max={6} step={0.25}
+                fmt={(v) => `${v}%`} onChange={(v) => update({ inflation: v })}
+                note="Sets how far future £ are discounted to today’s £."
+              />
+              <Control
+                id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
+                fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
+                note="Yearly uplift as your salary rises."
+              />
+            </div>
+          </section>
+        )}
+
+        {step === 1 && (
+          <section aria-labelledby="h1">
+            <h2 className="h" id="h1">Taking your money out</h2>
+            <p className="lede">
+              You can normally take <strong>25% tax free</strong>, capped at {full(TAX_FREE_CAP)}. Taking it in
+              one lump is simplest; spreading it over several years leaves more invested for longer.
+            </p>
+            <div className="echo">
+              <span className="e">
+                <span className="k">Tax-free cash</span>
+                <span className="v">{money(P.taxFreeTotal)}</span>
+                <span className="s">
+                  {P.taxFreeTotal >= TAX_FREE_CAP - 1
+                    ? `at the ${full(TAX_FREE_CAP)} cap`
+                    : `${s.taxFreePct}% of the pot at ${s.taxFreeTakeAge}`}
+                </span>
+              </span>
+              <span className="e">
+                <span className="k">{s.taxFreeYears > 1 ? "Each year" : "As one lump"}</span>
+                <span className="v">{money(P.taxFreeTotal / s.taxFreeYears)}</span>
+                <span className="s">
+                  {s.taxFreeYears > 1
+                    ? `ages ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}`
+                    : "tax free"}
+                </span>
+              </span>
+            </div>
+
+            <div className="card">
+              <h3>Retirement &amp; tax-free cash</h3>
+              <Control
+                id="tfpct" label="Tax-free share" value={s.taxFreePct} min={0} max={25} step={1}
+                fmt={(v) => `${v}%`} onChange={(v) => update({ taxFreePct: v })}
+                note={s.taxFreePct === 25
+                  ? `The maximum, capped at ${full(TAX_FREE_CAP)}.`
+                  : "Below the 25% maximum — the rest stays invested."}
+              />
+              <Control
+                id="tfage" label="Take it from age" value={s.taxFreeTakeAge} min={55} max={75} step={1}
+                fmt={(v) => String(v)} onChange={(v) => update({ taxFreeTakeAge: v })}
+                note={s.taxFreeTakeAge < 57
+                  ? "Minimum access age rises to 57 in 2028."
+                  : "At or above the 2028 minimum access age."}
+              />
+              <Control
+                id="tfyears" label="Spread over" value={s.taxFreeYears} min={1} max={15} step={1}
+                fmt={(v) => (v === 1 ? "1 year" : `${v} years`)} onChange={(v) => update({ taxFreeYears: v })}
+                note={s.taxFreeYears === 1
+                  ? "One lump sum."
+                  : `Phased crystallisation — ${s.taxFreeTakeAge} to ${s.taxFreeTakeAge + s.taxFreeYears - 1}, leaving more invested.`}
+              />
+            </div>
+          </section>
+        )}
+
+        {step === 2 && (
+          <section aria-labelledby="h2t">
+            <h2 className="h" id="h2t">How you&rsquo;ll spend it</h2>
+            <p className="lede">
+              Most people spend more in early retirement and less later. Each phase draws a
+              <strong> percentage of whatever is left</strong>, so income falls as the pot does.
+            </p>
+            <div className="echo">
+              <span className="e">
+                <span className="k">Starting income</span>
+                <span className="v">{firstIncome ? full(showToday ? firstIncome.monthlyToday : firstIncome.monthly) : "—"}</span>
+                <span className="s">a month from {start}</span>
+              </span>
+              <span className="e">
+                <span className="k">{depleted ? "Pot exhausted" : `Still going at ${END_AGE}`}</span>
+                <span className="v">{depleted ? `age ${depleted.age}` : money(P.years[P.years.length - 1].pot)}</span>
+                <span className="s">{depleted ? "lower a rate to extend it" : "comfortably sustainable"}</span>
+              </span>
+            </div>
+
+            <div className="card">
+              <h3>Start of drawdown</h3>
+              <Control
+                id="ddage" label="Start drawing at" value={s.drawdownAge} min={55} max={75} step={1}
+                fmt={(v) => String(v)} onChange={(v) => update({ drawdownAge: v })}
+                note={s.taxFreeTakeAge > s.drawdownAge
+                  ? `Income waits until ${start}, when tax-free cash is taken.`
+                  : `Contributions stop at ${start}.`}
+              />
+            </div>
+
+            <div className="card">
+              <h3>Phases</h3>
+              {s.phases.map((p, i) => {
+                const isLast = i === s.phases.length - 1;
+                return (
+                  <div className="phase" key={i}>
+                    <div className="phase-head">
+                      <span className="swatch" style={{ background: phaseVar(i) }}>{i + 1}</span>
+                      <input
+                        className="nm" value={p.label} aria-label={`Phase ${i + 1} name`}
+                        onChange={(e) => updatePhase(i, { label: e.target.value })}
+                      />
+                      {s.phases.length > 1 && (
+                        <button
+                          type="button" className="btn"
+                          onClick={() => update({ phases: s.phases.filter((_, j) => j !== i) })}
+                        >Remove</button>
+                      )}
+                    </div>
+                    <div className="phase-span">
+                      {isLast
+                        ? `Age ${spans[i].from} onwards, until the pot runs out or ${END_AGE}.`
+                        : `Age ${spans[i].from} to ${spans[i].to}.`}
+                    </div>
+                    <Control
+                      id={`rate-${i}`} label="Withdrawal rate" value={p.rate} min={1} max={15} step={0.25}
+                      fmt={(v) => `${v}%`} onChange={(v) => updatePhase(i, { rate: v })}
+                      note={p.rate > 6 ? "Above a sustainable rate — the pot will drain."
+                        : p.rate <= 4 ? "Conservative; likely to last." : "Moderate."}
+                    />
+                    {!isLast && (
+                      <Control
+                        id={`yrs-${i}`} label="Lasts for" value={p.years} min={1} max={30} step={1}
+                        fmt={(v) => (v === 1 ? "1 year" : `${v} years`)}
+                        onChange={(v) => updatePhase(i, { years: v })}
+                        note="Changing this shifts every later phase."
+                      />
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                type="button" className="btn btn-add" disabled={s.phases.length >= 4}
+                onClick={() => update({ phases: [...s.phases, { rate: 3, years: 99, label: "New phase" }] })}
+              >Add a phase</button>
+
+              <div className="timeline">
+                {spans.map((sp, i) => (
+                  <i key={i} style={{
+                    width: `${((sp.to - sp.from) / Math.max(END_AGE - start, 1)) * 100}%`,
+                    background: phaseVar(i), opacity: 0.7,
+                  }} />
+                ))}
+              </div>
+              <div className="tl-key">
+                {spans.map((sp, i) => (
+                  <span key={i}>
+                    <i style={{ background: phaseVar(i) }} />
+                    {sp.from}–{sp.isLast ? END_AGE : sp.to} at {sp.rate}%
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === 3 && (
+          <section aria-labelledby="h3t">
+            <h2 className="h" id="h3t">What happens to the pot</h2>
+            <p className="lede">
+              Bars are the pot in <strong>future £</strong> — the cash showing in the account that year.
+              The dashed line is the same pot in <strong>today&rsquo;s £</strong>. The gap between them is
+              inflation quietly doing its work.
+            </p>
+            <div className="card">
+              <h3>Pot value, age {s.currentAge} to {END_AGE}</h3>
+              <Chart years={P.years} showToday={showToday} />
+              <div className="legend">
+                <span><i style={{ background: "var(--accent-2)" }} />Building up</span>
+                {spans.map((sp, i) => (
+                  <span key={i}><i style={{ background: phaseVar(i) }} />{i + 1}. {sp.label || "Phase"}</span>
+                ))}
+                <span><i className="dash" />Today&rsquo;s £</span>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3>Pot at key ages</h3>
+              <p className="tcap">{basisCaption(showToday)}</p>
+              <div className="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr><th>Age</th><th>Pot</th><th>Rate</th><th>Phase</th></tr>
+                  </thead>
+                  <tbody>
+                    {potAges.map((a) => {
+                      const r = P.years.find((y) => y.age === a);
+                      if (!r) return null;
+                      const col = r.phaseIndex >= 0 ? phaseVar(r.phaseIndex) : undefined;
+                      const name = r.phaseIndex >= 0 && s.phases[r.phaseIndex]
+                        ? `${r.phaseIndex + 1}. ${s.phases[r.phaseIndex].label || "Phase"}`
+                        : r.drawing ? "Depleted" : "Building up";
+                      return (
+                        <tr key={a} className={a === start ? "key-row" : undefined}>
+                          <td>{a}</td>
+                          <td><Cell cash={r.pot} today={r.potToday} showToday={showToday} /></td>
+                          <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
+                            {r.rate > 0 ? `${r.rate}%` : "—"}
+                          </td>
+                          <td style={col ? { color: col } : undefined} className={col ? undefined : "muted"}>{name}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="notes">
+              <h3>What this does and doesn&rsquo;t count</h3>
+              <ul>
+                <li>Growth is applied each year after contributions. <strong>Today&rsquo;s £</strong> figures discount the future amount back at {s.inflation}% inflation — the same thing economists call <em>real terms</em>.</li>
+                <li>Platform and fund charges are <strong>not</strong> deducted — typically 0.3–0.8% combined. Lower the growth rate to allow for them.</li>
+                <li>The State Pension (around £11,500 a year from 67) is <strong>not</strong> included, and would sit on top of this.</li>
+                <li>Income tax on anything above the tax-free portion is <strong>not</strong> modelled.</li>
+                <li>Tax-free cash is capped at {full(TAX_FREE_CAP)}; the annual allowance is {full(ANNUAL_ALLOWANCE)}. Minimum access age rises to 57 in 2028.</li>
+                <li>From April 2027 pensions fall within Inheritance Tax.</li>
+              </ul>
+              <div className="warnbox">
+                <strong>Not financial advice.</strong> A simplified projection for exploring scenarios.
+                Speak to a regulated adviser before acting on it.
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === 4 && (
+          <section aria-labelledby="h4t">
+            <h2 className="h" id="h4t">What you actually receive</h2>
+            <p className="lede">
+              Every payment the plan produces, year by year — <strong>drawdown income and tax-free cash</strong>,
+              each in future £ and in today&rsquo;s £. Income falls over time because each phase draws a
+              percentage of a shrinking pot.
+            </p>
+            <div className="echo">
+              <span className="e">
+                <span className="k">First year&rsquo;s income</span>
+                <span className="v">{firstIncome ? full(showToday ? firstIncome.annualToday : firstIncome.annual) : "—"}</span>
+                <span className="s">
+                  {firstIncome
+                    ? `${full(showToday ? firstIncome.monthlyToday : firstIncome.monthly)} a month at ${firstIncome.age}`
+                    : "no drawdown set"}
+                </span>
+              </span>
+              <span className="e">
+                <span className="k">Drawdown, lifetime</span>
+                <span className="v">{money(showToday ? totals.today : totals.cash)}</span>
+                <span className="s">taxable as income</span>
+              </span>
+              <span className="e">
+                <span className="k">Tax-free, lifetime</span>
+                <span className="v">{money(showToday ? totals.tfToday : totals.tfCash)}</span>
+                <span className="s">{s.taxFreeYears > 1 ? `${s.taxFreeYears} tranches` : "one lump sum"}</span>
+              </span>
+            </div>
+
+            <div className="card">
+              <h3>Payment schedule</h3>
+              <p className="tcap">{basisCaption(showToday)}</p>
+              <div className="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Age</th><th>Rate</th><th>Tax-free cash</th><th>Annual income</th><th>Monthly income</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {incomeRows.length === 0 && (
+                      <tr><td colSpan={5} className="muted">No payments yet — set a drawdown age on step 03.</td></tr>
+                    )}
+                    {incomeRows.map((r) => {
+                      const col = r.phaseIndex >= 0 ? phaseVar(r.phaseIndex) : undefined;
+                      return (
+                        <tr key={r.age} className={r.taxFree > 0 ? "tf-row" : undefined}>
+                          <td>{r.age}</td>
+                          <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
+                            {r.rate > 0 ? `${r.rate}%` : "—"}
+                          </td>
+                          <td>{r.taxFree > 0
+                            ? <Cell cash={r.taxFree} today={r.taxFreeToday} showToday={showToday} fmt={full} />
+                            : <span className="muted">—</span>}</td>
+                          <td>{r.annual > 0
+                            ? <Cell cash={r.annual} today={r.annualToday} showToday={showToday} fmt={full} />
+                            : <span className="muted">—</span>}</td>
+                          <td>{r.annual > 0
+                            ? <Cell cash={r.monthly} today={r.monthlyToday} showToday={showToday} fmt={full} />
+                            : <span className="muted">—</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={2}>Total paid out</td>
+                      <td><Cell cash={totals.tfCash} today={totals.tfToday} showToday={showToday} /></td>
+                      <td><Cell cash={totals.cash} today={totals.today} showToday={showToday} /></td>
+                      <td className="muted" style={{ fontWeight: 400 }}>over {incomeRows.length} years</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div className="notes">
+              <h3>Before you spend it</h3>
+              <ul>
+                <li>Tax-free cash is genuinely tax free. <strong>Drawdown income is not</strong> — it is taxed as income at your marginal rate, so the take-home figure is lower than shown.</li>
+                <li>The State Pension (around £11,500 a year from 67) would sit on top of these figures and is taxable too.</li>
+                <li>Totals are the sum of every payment across the whole projection, not an amount available at any one moment.</li>
+              </ul>
+            </div>
+          </section>
+        )}
+
+        <nav className="fnav">
+          <button type="button" disabled={step === 0} onClick={() => go(step - 1)}>Back</button>
+          <button type="button" className="primary" onClick={() => go(step === STEPS.length - 1 ? 0 : step + 1)}>
+            {step === STEPS.length - 1 ? "Start again" : "Next"}
+          </button>
+        </nav>
+
+        <p className="foot">
+          Your figures stay in this browser — nothing is sent anywhere.<br />
+          <a href="https://github.com/clemmo93/pension-planner">Source on GitHub</a>
+        </p>
+      </div>
+    </>
   );
 }
