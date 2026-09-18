@@ -1,15 +1,20 @@
 import { useState, useMemo, useRef } from "react";
 import { project, phaseSpans, incomeStartAge, TAX_FREE_CAP, ANNUAL_ALLOWANCE, END_AGE } from "./projection.js";
 
-const STORE_KEY = "pension-planner.v2";
+const STORE_KEY = "pension-planner.v3";
+
+// Contributions default to rising with inflation: a pay rise that merely keeps
+// pace leaves you contributing the same in real terms. Anything lower means
+// your contributions quietly shrink every year.
+const DEFAULT_INFLATION = 2.5;
 
 const DEFAULTS = {
   currentAge: 30,
   currentPot: 100000,
   annualContrib: 10000,
   growth: 6,
-  contribGrowth: 2,
-  inflation: 2.5,
+  contribGrowth: DEFAULT_INFLATION,
+  inflation: DEFAULT_INFLATION,
   taxFreePct: 25,
   taxFreeTakeAge: 57,
   taxFreeYears: 1,
@@ -476,7 +481,11 @@ export default function PensionPlanner() {
               <Control
                 id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
-                note="Yearly uplift as your salary rises."
+                note={s.contribGrowth === s.inflation
+                  ? "Matching inflation — your contributions hold their value."
+                  : s.contribGrowth < s.inflation
+                    ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
+                    : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
               />
             </div>
           </section>
