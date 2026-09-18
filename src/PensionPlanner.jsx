@@ -372,7 +372,11 @@ export default function PensionPlanner() {
     tfCash: a.tfCash + r.taxFree, tfToday: a.tfToday + r.taxFreeToday,
   }), { cash: 0, today: 0, tfCash: 0, tfToday: 0 });
 
-  const potAges = [40, 50, 55, 57, 60, 65, 67, 70, 75, 80, 85, 90].filter((a) => a >= s.currentAge);
+  const potAges = useMemo(() => {
+    const ages = new Set([s.currentAge, start]);
+    for (let a = Math.ceil((s.currentAge + 1) / 5) * 5; a <= END_AGE; a += 5) ages.add(a);
+    return [...ages].filter((a) => a >= s.currentAge && a <= END_AGE).sort((a, b) => a - b);
+  }, [s.currentAge, start]);
 
   return (
     <>
@@ -665,11 +669,11 @@ export default function PensionPlanner() {
 
             <div className="card">
               <h3>Pot at key ages</h3>
-              <p className="tcap">{basisCaption(showToday)}</p>
+              <p className="tcap"><b>Paid in</b> is everything contributed up to that age, not that year's payment. {basisCaption(showToday)}</p>
               <div className="tbl-scroll">
                 <table>
                   <thead>
-                    <tr><th>Age</th><th>Pot</th><th>Rate</th><th>Phase</th></tr>
+                    <tr><th>Age</th><th>Paid in</th><th>Pot</th><th>Rate</th><th>Phase</th></tr>
                   </thead>
                   <tbody>
                     {potAges.map((a) => {
@@ -682,6 +686,11 @@ export default function PensionPlanner() {
                       return (
                         <tr key={a} className={a === start ? "key-row" : undefined}>
                           <td>{a}</td>
+                          <td className={r.paidIn > 0 ? undefined : "muted"}>
+                            {r.paidIn > 0
+                              ? <Cell cash={r.paidIn} today={r.paidInToday} showToday={showToday} />
+                              : "—"}
+                          </td>
                           <td><Cell cash={r.pot} today={r.potToday} showToday={showToday} /></td>
                           <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
                             {r.rate > 0 ? `${r.rate}%` : "—"}

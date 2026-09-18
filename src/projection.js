@@ -48,6 +48,7 @@ export function project(s) {
   let pot = s.currentPot;
   let contribution = s.annualContrib;
   let contributedTotal = 0;
+  let contributedTotalToday = 0;
   let taxFreeTotal = 0;
   let taxFreePerYear = 0;
   let taxFreeTaken = 0;
@@ -56,11 +57,15 @@ export function project(s) {
   for (let age = s.currentAge; age <= END_AGE; age++) {
     const drawing = age >= start;
     const phase = byAge[age] || { rate: fallbackRate, index: s.phases.length - 1 };
+    const deflator = Math.pow(1 + s.inflation / 100, age - s.currentAge);
 
     // Contributions run until the pot is first touched.
     if (age > s.currentAge && age < start) {
       pot += contribution;
       contributedTotal += contribution;
+      // Each year's payment discounted by that year's deflator, so the running
+      // total is what everything paid in so far is worth in today's money.
+      contributedTotalToday += contribution / deflator;
       contribution *= 1 + s.contribGrowth / 100;
     }
 
@@ -88,7 +93,6 @@ export function project(s) {
       pot -= drawn;
     }
 
-    const deflator = Math.pow(1 + s.inflation / 100, age - s.currentAge);
     years.push({
       age,
       pot: Math.max(pot, 0),
@@ -102,6 +106,9 @@ export function project(s) {
       monthlyToday: drawn / 12 / deflator,
       taxFree: taxFreeThisYear,
       taxFreeToday: taxFreeThisYear / deflator,
+      paidIn: contributedTotal,
+      paidInToday: contributedTotalToday,
+      contributionThisYear: age > s.currentAge && age < start ? contribution / (1 + s.contribGrowth / 100) : 0,
       deflator,
     });
 
@@ -111,6 +118,8 @@ export function project(s) {
           age: a, pot: 0, potToday: 0, drawing: true, phaseIndex: -1, rate: 0,
           annual: 0, annualToday: 0, monthly: 0, monthlyToday: 0,
           taxFree: 0, taxFreeToday: 0,
+          paidIn: contributedTotal, paidInToday: contributedTotalToday,
+          contributionThisYear: 0,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
         });
       }
