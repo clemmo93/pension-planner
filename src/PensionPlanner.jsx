@@ -343,6 +343,8 @@ function Chart({ years, showToday }) {
  * may be flat — or falling. That is invisible in a single percentage.
  */
 function ContributionTrajectory({ contributions, children }) {
+  const [hover, setHover] = useState(null);
+  const ref = useRef(null);
   const rows = contributions;
   // Nothing to plot if there are no working years left, or nothing going in.
   if (rows.length < 2 || rows[rows.length - 1].amount <= 0) return null;
@@ -357,12 +359,29 @@ function ContributionTrajectory({ contributions, children }) {
   const flat = Math.round(first.amountToday) === Math.round(last.amountToday);
   const rising = last.amountToday > first.amountToday;
 
+  // Which bar is under the pointer. Floor over the bar count rather than
+  // rounding to centres, so the reading matches the bar you are actually on.
+  const pick = (clientX) => {
+    const box = ref.current?.getBoundingClientRect();
+    if (!box) return;
+    const frac = (((clientX - box.left) / box.width) * W - padL) / plotW;
+    const i = Math.max(0, Math.min(rows.length - 1, Math.floor(frac * rows.length)));
+    setHover(rows[i].age);
+  };
+  const hovered = hover === null ? null : rows.find((r) => r.age === hover);
+  const hoverIndex = hovered ? rows.indexOf(hovered) : -1;
+
   return (
     <div className="card">
       <h3>What you pay in each year</h3>
       <div className="chart-wrap">
-        <svg viewBox={`0 0 ${W} ${H}`} role="img"
-          aria-label={`Annual contribution from age ${first.age} to ${last.age}`}>
+        <svg
+          ref={ref} viewBox={`0 0 ${W} ${H}`} role="img"
+          aria-label={`Annual contribution from age ${first.age} to ${last.age}`}
+          onMouseMove={(e) => pick(e.clientX)}
+          onMouseLeave={() => setHover(null)}
+          onTouchMove={(e) => pick(e.touches[0].clientX)}
+        >
           {[0, 0.5, 1].map((f) => {
             const y = padT + plotH - f * plotH;
             return (
@@ -377,17 +396,36 @@ function ContributionTrajectory({ contributions, children }) {
             const h = (y.amount / max) * plotH;
             return (
               <rect key={y.age} x={xOf(i)} y={padT + plotH - h} width={bw} height={Math.max(h, 0)} rx="1"
-                opacity=".9" style={{ fill: "var(--accent-2)" }} />
+                opacity={hover !== null && y.age !== hover ? 0.38 : 0.95}
+                style={{ fill: "var(--accent-2)" }} />
             );
           })}
           <polyline fill="none" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round"
             style={{ stroke: "var(--ink-3)" }}
             points={rows.map((y, i) => `${xOf(i) + bw / 2},${padT + plotH - (y.amountToday / max) * plotH}`).join(" ")} />
+          {hovered && (
+            <circle
+              cx={xOf(hoverIndex) + bw / 2}
+              cy={padT + plotH - (hovered.amountToday / max) * plotH}
+              r="3" style={{ fill: "var(--ink)" }}
+            />
+          )}
           {[first, last].map((y, k) => (
             <text key={y.age} x={k === 0 ? padL : W - padR} y={H - 6} textAnchor={k === 0 ? "start" : "end"}
               fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>{y.age}</text>
           ))}
         </svg>
+      </div>
+      <div className="readout">
+        {!hovered ? (
+          <span>Hover or drag across the bars to read any year.</span>
+        ) : (
+          <>
+            <span>Age <b>{hovered.age}</b></span>
+            <span>Paying in <b>{full(hovered.amount)}</b></span>
+            <span><b>{full(hovered.amountToday)}</b> in today&rsquo;s £</span>
+          </>
+        )}
       </div>
       <div className="legend">
         <span><i style={{ background: "var(--accent-2)" }} />Future £</span>
