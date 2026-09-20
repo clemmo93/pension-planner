@@ -109,10 +109,15 @@ export function project(s) {
     const inTaxFreeWindow = !ufpls && age >= s.taxFreeTakeAge && age < s.taxFreeTakeAge + s.taxFreeYears;
     if (inTaxFreeWindow && taxFreeTaken < s.taxFreeYears && pct > 0 && lsaLeft > 0.01 && uncrystallised > 0) {
       const yearsLeft = s.taxFreeYears - taxFreeTaken;
-      let slice = uncrystallised / yearsLeft;
+      // Only crystallise what the REMAINING allowance can pay tax-free cash on.
+      // Splitting the whole pot instead makes every slice oversized once the pot
+      // is past 4x the cap: the allowance is exhausted early, the later years of
+      // the schedule pay nothing, and the excess has been shifted into the
+      // taxable bucket for no benefit. Below the cap this is the whole pot, so
+      // phasing still picks up the growth on what has not been crystallised yet.
+      const worthCrystallising = Math.min(uncrystallised, lsaLeft / pct);
+      let slice = worthCrystallising / yearsLeft;
       let cash = slice * pct;
-      // Capped: crystallise only as much as the remaining allowance can pay out
-      // on, and leave the rest uncrystallised.
       if (cash > lsaLeft) {
         cash = lsaLeft;
         slice = cash / pct;
@@ -193,6 +198,9 @@ export function project(s) {
     }
   }
 
+  // Derived from what was actually paid, never from the requested settings, so
+  // a label can never claim a tranche the projection did not produce.
+  const taxFreePayments = years.filter((y) => y.taxFree > 0);
   const depleted = years.find((y) => y.drawing && y.pot <= 0) || null;
   const firstIncome = years.find((y) => y.withdrawal > 0) || null;
   const atRetirement = years.find((y) => y.age === start) || null;
@@ -201,6 +209,7 @@ export function project(s) {
     years,
     contributions,
     taxFreeTotal,
+    taxFreePayments,
     contributedTotal,
     depleted,
     firstIncome,

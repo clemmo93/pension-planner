@@ -643,6 +643,10 @@ export default function PensionPlanner() {
     tfCash: a.tfCash + r.taxFree, tfToday: a.tfToday + r.taxFreeToday,
   }), { cash: 0, today: 0, tfCash: 0, tfToday: 0 });
 
+  // Step 03's tiles were the only money figures ignoring the basis toggle.
+  const taxFreeTotalToday = P.taxFreePayments.reduce((a, y) => a + y.taxFreeToday, 0);
+  const taxFreeShown = showToday ? taxFreeTotalToday : P.taxFreeTotal;
+
   const potAges = useMemo(() => {
     const ages = new Set([s.currentAge, start]);
     for (let a = Math.ceil((s.currentAge + 1) / 5) * 5; a <= END_AGE; a += 5) ages.add(a);
@@ -819,7 +823,7 @@ export default function PensionPlanner() {
             <div className="echo">
               <span className="e">
                 <span className="k">Tax-free cash</span>
-                <span className="v">{money(P.taxFreeTotal)}</span>
+                <span className="v">{money(taxFreeShown)}</span>
                 <span className="s">
                   {P.taxFreeTotal >= TAX_FREE_CAP - 1
                     ? `at the ${full(TAX_FREE_CAP)} cap`
@@ -828,11 +832,15 @@ export default function PensionPlanner() {
               </span>
               {s.taxFreeMode === "lump" ? (
                 <span className="e">
-                  <span className="k">{s.taxFreeYears > 1 ? "Each year" : "As one lump"}</span>
-                  <span className="v">{money(P.taxFreeTotal / s.taxFreeYears)}</span>
+                  <span className="k">{P.taxFreePayments.length > 1 ? "Each year" : "As one lump"}</span>
+                  <span className="v">
+                    {P.taxFreePayments.length
+                      ? money(taxFreeShown / P.taxFreePayments.length)
+                      : "—"}
+                  </span>
                   <span className="s">
-                    {s.taxFreeYears > 1
-                      ? `ages ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}`
+                    {P.taxFreePayments.length > 1
+                      ? `ages ${P.taxFreePayments[0].age}–${P.taxFreePayments[P.taxFreePayments.length - 1].age}`
                       : "tax free"}
                   </span>
                 </span>
@@ -900,7 +908,9 @@ export default function PensionPlanner() {
                 fmt={(v) => (v === 1 ? "1 year" : `${v} years`)} onChange={(v) => update({ taxFreeYears: v })}
                 note={s.taxFreeYears === 1
                   ? "One lump sum."
-                  : `Phased over ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}. Each slice is taken from a pot that has had longer to grow.`}
+                  : P.taxFreePayments.length
+                    ? `Phased over ${P.taxFreePayments[0].age}–${P.taxFreePayments[P.taxFreePayments.length - 1].age}. Each slice is taken from a pot that has had longer to grow.`
+                    : "Nothing to take — set a tax-free share above 0%."}
                 info="You do not have to move the whole pot into drawdown at once. Take it in slices and the part you have not touched keeps growing, so later slices release more tax-free cash. Providers call this phased crystallisation. It makes no difference once you reach the lifetime cap."
               />
               </>}
@@ -1125,7 +1135,9 @@ export default function PensionPlanner() {
                 <span className="s">
                   {s.taxFreeMode === "ufpls"
                     ? "spread across every payment"
-                    : s.taxFreeYears > 1 ? `${s.taxFreeYears} tranches` : "one lump sum"}
+                    : P.taxFreePayments.length > 1
+                      ? `${P.taxFreePayments.length} tranches`
+                      : "one lump sum"}
                 </span>
               </span>
             </div>
