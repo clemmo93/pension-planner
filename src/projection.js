@@ -211,6 +211,7 @@ export function project(s) {
     taxFreeTotal,
     taxFreePayments,
     contributedTotal,
+    contributedTotalToday,
     depleted,
     firstIncome,
     atRetirement,

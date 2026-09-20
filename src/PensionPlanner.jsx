@@ -779,12 +779,22 @@ export default function PensionPlanner() {
             <div className="echo">
               <span className="e">
                 <span className="k">Pot at {start}</span>
-                <span className="v">{atRetirement ? money(atRetirement.potGross) : "—"}</span>
-                <span className="s">{atRetirement ? `${money(atRetirement.potGrossToday)} in today’s £` : ""}</span>
+                <span className="v">
+                  {atRetirement ? money(showToday ? atRetirement.potGrossToday : atRetirement.potGross) : "—"}
+                </span>
+                {/* The second line carries whichever basis the big figure is not,
+                    so both numbers stay on screen either way round. */}
+                <span className="s">
+                  {atRetirement
+                    ? showToday
+                      ? `${money(atRetirement.potGross)} in future £`
+                      : `${money(atRetirement.potGrossToday)} in today’s £`
+                    : ""}
+                </span>
               </span>
               <span className="e">
                 <span className="k">You will have paid in</span>
-                <span className="v">{money(P.contributedTotal)}</span>
+                <span className="v">{money(showToday ? P.contributedTotalToday : P.contributedTotal)}</span>
                 <span className="s">over {P.contributions.length} years</span>
               </span>
             </div>
@@ -839,7 +849,7 @@ export default function PensionPlanner() {
               </span>
               <span className="e">
                 <span className="k">Total by {start}</span>
-                <span className="v">{money(P.contributedTotal)}</span>
+                <span className="v">{money(showToday ? P.contributedTotalToday : P.contributedTotal)}</span>
                 <span className="s">over {P.contributions.length} years</span>
               </span>
             </div>
@@ -991,7 +1001,13 @@ export default function PensionPlanner() {
               </span>
               <span className="e">
                 <span className="k">{depleted ? "Pot exhausted" : `Still going at ${END_AGE}`}</span>
-                <span className="v">{depleted ? `age ${depleted.age}` : money(P.years[P.years.length - 1].pot)}</span>
+                <span className="v">
+                  {depleted
+                    ? `age ${depleted.age}`
+                    : money(showToday
+                        ? P.years[P.years.length - 1].potToday
+                        : P.years[P.years.length - 1].pot)}
+                </span>
                 <span className="s">{depleted ? "lower a rate to extend it" : "comfortably sustainable"}</span>
               </span>
             </div>
