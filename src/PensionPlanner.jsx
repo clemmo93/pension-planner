@@ -127,8 +127,8 @@ const WALKTHROUGH = [
   {
     icon: "③",
     title: "Tax-free cash",
-    body: `You can normally take 25% of your pot without paying tax on it, up to ${full(TAX_FREE_CAP)}. Take it as one lump or spread it over several years.`,
-    why: "Spreading it leaves more money invested for longer, which usually means a larger pot and more income later.",
+    body: `A quarter of whatever you move into drawdown is tax free, up to ${full(TAX_FREE_CAP)} in total. Take it in one go or in slices over several years.`,
+    why: "Money you have not moved yet keeps growing, so slices taken later release more tax-free cash. Below the cap, spreading can be worth tens of thousands.",
   },
   {
     icon: "④",
@@ -836,7 +836,7 @@ export default function PensionPlanner() {
                 note={s.taxFreePct === 25
                   ? `The maximum, capped at ${full(TAX_FREE_CAP)}.`
                   : "Below the 25% maximum — the rest stays invested."}
-                info={`You can normally take a quarter of your pot without paying any tax on it, up to ${full(TAX_FREE_CAP)}. Taking less leaves more invested, which grows and pays you more income later.`}
+                info={`A quarter of whatever you move into drawdown comes to you tax free, up to ${full(TAX_FREE_CAP)} across your lifetime. The other three quarters stay invested and are taxed only when you withdraw them.`}
               />
               <Control
                 id="tfage" label="Take it from age" value={s.taxFreeTakeAge} min={55} max={75} step={1}
@@ -851,8 +851,8 @@ export default function PensionPlanner() {
                 fmt={(v) => (v === 1 ? "1 year" : `${v} years`)} onChange={(v) => update({ taxFreeYears: v })}
                 note={s.taxFreeYears === 1
                   ? "One lump sum."
-                  : `Phased crystallisation — ${s.taxFreeTakeAge} to ${s.taxFreeTakeAge + s.taxFreeYears - 1}, leaving more invested.`}
-                info="You do not have to take the whole tax-free amount at once. Taking it in slices over several years keeps the rest invested and growing. Providers call this phased crystallisation."
+                  : `Phased over ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}. Each slice is taken from a pot that has had longer to grow.`}
+                info="You do not have to move the whole pot into drawdown at once. Take it in slices and the part you have not touched keeps growing, so later slices release more tax-free cash. Providers call this phased crystallisation. It makes no difference once you reach the lifetime cap."
               />
             </div>
           </section>

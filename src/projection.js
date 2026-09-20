@@ -46,14 +46,18 @@ export function project(s) {
   });
   const fallbackRate = s.phases.length ? s.phases[s.phases.length - 1].rate : 4;
 
-  let pot = s.currentPot;
+  // The pot is held as two buckets, because tax-free cash is not a pool you
+  // draw down — it is a quarter of whatever you CRYSTALLISE. Money you have not
+  // crystallised yet keeps growing, so a slice crystallised in year five
+  // releases more tax-free cash than the same fraction would have in year one.
+  // Freezing the entitlement against the pot on day one misses that entirely.
+  let uncrystallised = s.currentPot;
+  let crystallised = 0;
   let contribution = s.annualContrib;
   let contributedTotal = 0;
   let contributedTotalToday = 0;
   let taxFreeTotal = 0;
-  let taxFreePerYear = 0;
   let taxFreeTaken = 0;
-  let taxFreeStarted = false;
 
   for (let age = s.currentAge; age <= END_AGE; age++) {
     const drawing = age >= start;
@@ -68,7 +72,7 @@ export function project(s) {
     if (age > s.currentAge && age <= start) {
       const paidAtAge = age - 1;
       const paidDeflator = Math.pow(1 + s.inflation / 100, paidAtAge - s.currentAge);
-      pot += contribution;
+      uncrystallised += contribution;
       contributedTotal += contribution;
       contributedTotalToday += contribution / paidDeflator;
       contributions.push({
@@ -79,35 +83,57 @@ export function project(s) {
       contribution *= 1 + s.contribGrowth / 100;
     }
 
-    if (age > s.currentAge) pot *= 1 + s.growth / 100;
+    if (age > s.currentAge) {
+      const g = 1 + s.growth / 100;
+      uncrystallised *= g;
+      crystallised *= g;
+    }
 
     // The pot at its fullest this year: everything paid in and grown, before a
     // penny is taken out. This is what "your pot at retirement" means — taking
     // the year's tax-free cash and first withdrawal off it first understates
     // what you actually built.
-    const potGross = pot;
+    const potGross = uncrystallised + crystallised;
 
-    // Entitlement is fixed against the pot in the year crystallisation begins.
-    if (age === s.taxFreeTakeAge && !taxFreeStarted) {
-      taxFreePerYear = Math.min(pot * (s.taxFreePct / 100), TAX_FREE_CAP) / s.taxFreeYears;
-      taxFreeStarted = true;
-    }
-
+    // Crystallise this year's slice and take its tax-free share. The slice is
+    // an even portion of what is STILL uncrystallised, so it grows year on year
+    // while you phase. The lump sum allowance is a lifetime ceiling, so once it
+    // is used up there is nothing to gain by crystallising further.
     let taxFreeThisYear = 0;
+    const pct = s.taxFreePct / 100;
+    const lsaLeft = TAX_FREE_CAP - taxFreeTotal;
     const inTaxFreeWindow = age >= s.taxFreeTakeAge && age < s.taxFreeTakeAge + s.taxFreeYears;
-    if (inTaxFreeWindow && taxFreeStarted && taxFreeTaken < s.taxFreeYears) {
-      taxFreeThisYear = Math.min(taxFreePerYear, pot);
-      pot -= taxFreeThisYear;
-      taxFreeTotal += taxFreeThisYear;
+    if (inTaxFreeWindow && taxFreeTaken < s.taxFreeYears && pct > 0 && lsaLeft > 0.01 && uncrystallised > 0) {
+      const yearsLeft = s.taxFreeYears - taxFreeTaken;
+      let slice = uncrystallised / yearsLeft;
+      let cash = slice * pct;
+      // Capped: crystallise only as much as the remaining allowance can pay out
+      // on, and leave the rest uncrystallised.
+      if (cash > lsaLeft) {
+        cash = lsaLeft;
+        slice = cash / pct;
+      }
+      slice = Math.min(slice, uncrystallised);
+      uncrystallised -= slice;
+      crystallised += slice - cash;
+      taxFreeThisYear = cash;
+      taxFreeTotal += cash;
       taxFreeTaken++;
     }
 
-    // Tax-free cash comes out first; the withdrawal rate applies to what is left.
+    // Income comes out of crystallised funds first — that is what they are for,
+    // and it leaves the uncrystallised part intact to keep growing behind any
+    // remaining tax-free slices.
     let drawn = 0;
-    if (drawing && pot > 0) {
-      drawn = pot * (phase.rate / 100);
-      pot -= drawn;
+    const available = uncrystallised + crystallised;
+    if (drawing && available > 0) {
+      drawn = available * (phase.rate / 100);
+      const fromCrystallised = Math.min(drawn, crystallised);
+      crystallised -= fromCrystallised;
+      uncrystallised = Math.max(uncrystallised - (drawn - fromCrystallised), 0);
     }
+
+    const pot = uncrystallised + crystallised;
 
     years.push({
       age,
@@ -124,6 +150,8 @@ export function project(s) {
       monthlyToday: drawn / 12 / deflator,
       taxFree: taxFreeThisYear,
       taxFreeToday: taxFreeThisYear / deflator,
+      uncrystallised: Math.max(uncrystallised, 0),
+      crystallised: Math.max(crystallised, 0),
       paidIn: contributedTotal,
       paidInToday: contributedTotalToday,
       deflator,
@@ -135,7 +163,7 @@ export function project(s) {
           age: a, pot: 0, potToday: 0, potGross: 0, potGrossToday: 0,
           drawing: true, phaseIndex: -1, rate: 0,
           annual: 0, annualToday: 0, monthly: 0, monthlyToday: 0,
-          taxFree: 0, taxFreeToday: 0,
+          taxFree: 0, taxFreeToday: 0, uncrystallised: 0, crystallised: 0,
           paidIn: contributedTotal, paidInToday: contributedTotalToday,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
         });
