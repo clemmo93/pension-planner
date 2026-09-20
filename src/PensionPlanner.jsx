@@ -673,7 +673,7 @@ export default function PensionPlanner() {
               <span className="v">{firstIncome ? full(showToday ? firstIncome.monthlyToday : firstIncome.monthly) : "—"}</span>
               <span className="s">
                 {firstIncome
-                  ? `Retiring at ${firstIncome.age}, drawing ${firstIncome.rate}%. Before tax.`
+                  ? `Retiring at ${firstIncome.age}, drawing ${firstIncome.rate}%.`
                   : "set a drawdown age"}
               </span>
             </span>
