@@ -94,6 +94,70 @@ button, input { font: inherit; color: inherit; }
 }
 .basis button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
 
+.hiw-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 4px 2px; cursor: pointer;
+  color: var(--ink-2); font-size: 12px; font-weight: 600;
+}
+.hiw-btn:hover { color: var(--accent); }
+.hiw-btn span {
+  width: 16px; height: 16px; display: grid; place-items: center;
+  border: 1px solid currentColor; border-radius: 50%;
+  font-family: Georgia, serif; font-style: italic; font-size: 10px; font-weight: 700;
+}
+/* On a phone the label pushes the basis toggle onto its own line and the
+   sticky bar grows to three rows. The icon alone keeps it to one. */
+@media (max-width: 560px) {
+  .hiw-btn { font-size: 0; gap: 0; padding: 4px; }
+  .hiw-btn span { width: 22px; height: 22px; font-size: 12px; }
+}
+
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(15, 13, 9, .55);
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: max(env(safe-area-inset-top, 0px), 16px) 16px 16px;
+  overscroll-behavior: contain;
+}
+.sheet {
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow);
+  width: 100%; max-width: 620px; max-height: 100%;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sheet:focus { outline: none; }
+.sheet-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+  background: var(--surface); flex: none;
+}
+.sheet-head h2 {
+  margin: 0; flex: 1; font-family: var(--display);
+  font-size: 19px; font-weight: 600;
+}
+.sheet-x {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.sheet-x:hover { border-color: var(--accent); color: var(--accent); }
+.sheet-body { padding: 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sheet-lede { margin: 0 0 20px; color: var(--ink-2); font-size: 13.5px; }
+
+.hiw { display: flex; gap: 12px; margin-bottom: 20px; }
+.hiw-icon {
+  flex: none; width: 26px; text-align: center;
+  font-size: 19px; color: var(--accent); line-height: 1.3;
+}
+.hiw h3 {
+  margin: 0 0 4px; font-family: var(--display);
+  font-size: 15px; font-weight: 600; color: var(--ink);
+  letter-spacing: 0; text-transform: none;
+}
+.hiw p { margin: 0 0 6px; font-size: 13px; color: var(--ink-2); line-height: 1.55; }
+.hiw-why { color: var(--ink-3) !important; }
+.hiw-why b { color: var(--ink-2); font-weight: 600; }
+
 .verdict-figs { display: flex; align-items: flex-end; gap: 16px; }
 .fig { flex: 1; min-width: 0; }
 .fig .k {
@@ -113,9 +177,10 @@ button, input { font: inherit; color: inherit; }
 @media (max-width: 380px) { .spark { display: none; } }
 
 /* --- step nav: the numbering is a real sequence --- */
-.steps { display: flex; gap: 6px; margin: 16px 0 18px; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 18px; }
 .steps button {
-  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 9px; cursor: pointer; text-align: left;
   transition: border-color .15s, background .15s;
@@ -125,9 +190,11 @@ button, input { font: inherit; color: inherit; }
 .steps .n { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); }
 .steps button[aria-current="step"] .n { color: var(--accent); }
 .steps .t { font-size: 12px; font-weight: 600; line-height: 1.2; }
-@media (max-width: 460px) {
-  .steps .t { display: none; }
-  .steps button { align-items: center; padding: 9px 6px; }
+@media (max-width: 560px) {
+  /* Three across, two rows. Hiding the names left five bare numbers that said
+     nothing about where you were or what came next. */
+  .steps button { flex: 1 1 28%; padding: 7px 8px; }
+  .steps .t { font-size: 11.5px; }
 }
 
 /* --- panels --- */
@@ -153,6 +220,26 @@ h2.h {
 .ctl:last-child { margin-bottom: 0; }
 .ctl-head { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
 .ctl-head label { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
+
+.info { position: relative; display: inline-block; margin-left: 5px; vertical-align: middle; }
+.info-btn {
+  width: 17px; height: 17px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line-strong); background: var(--surface-2);
+  color: var(--ink-2); font-size: 10px; font-weight: 700; font-style: italic;
+  line-height: 1; cursor: pointer; font-family: Georgia, serif;
+}
+.info-btn:hover, .info-btn[aria-expanded="true"] {
+  border-color: var(--accent); color: var(--accent);
+}
+.info-pop {
+  position: absolute; z-index: 30; top: calc(100% + 7px); left: -8px;
+  width: max-content; max-width: min(280px, calc(100vw - 48px));
+  background: var(--raise); border: 1px solid var(--line-strong);
+  border-radius: 10px; padding: 11px 13px; box-shadow: var(--shadow);
+  font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--ink-2);
+  white-space: normal; text-transform: none; letter-spacing: 0;
+}
+.info-pop b { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 600; }
 .ctl-val { flex: none; }
 .ctl-val input[type=text] {
   width: 112px; text-align: right;

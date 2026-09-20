@@ -81,6 +81,12 @@ export function project(s) {
 
     if (age > s.currentAge) pot *= 1 + s.growth / 100;
 
+    // The pot at its fullest this year: everything paid in and grown, before a
+    // penny is taken out. This is what "your pot at retirement" means — taking
+    // the year's tax-free cash and first withdrawal off it first understates
+    // what you actually built.
+    const potGross = pot;
+
     // Entitlement is fixed against the pot in the year crystallisation begins.
     if (age === s.taxFreeTakeAge && !taxFreeStarted) {
       taxFreePerYear = Math.min(pot * (s.taxFreePct / 100), TAX_FREE_CAP) / s.taxFreeYears;
@@ -107,6 +113,8 @@ export function project(s) {
       age,
       pot: Math.max(pot, 0),
       potToday: Math.max(pot / deflator, 0),
+      potGross: Math.max(potGross, 0),
+      potGrossToday: Math.max(potGross / deflator, 0),
       drawing,
       phaseIndex: drawing ? phase.index : -1,
       rate: drawing ? phase.rate : 0,
@@ -124,7 +132,8 @@ export function project(s) {
     if (pot <= 0 && drawing) {
       for (let a = age + 1; a <= END_AGE; a++) {
         years.push({
-          age: a, pot: 0, potToday: 0, drawing: true, phaseIndex: -1, rate: 0,
+          age: a, pot: 0, potToday: 0, potGross: 0, potGrossToday: 0,
+          drawing: true, phaseIndex: -1, rate: 0,
           annual: 0, annualToday: 0, monthly: 0, monthlyToday: 0,
           taxFree: 0, taxFreeToday: 0,
           paidIn: contributedTotal, paidInToday: contributedTotalToday,
