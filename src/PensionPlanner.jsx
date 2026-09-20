@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { project, phaseSpans, incomeStartAge, TAX_FREE_CAP, ANNUAL_ALLOWANCE, END_AGE } from "./projection.js";
 
 const STORE_KEY = "pension-planner.v3";
@@ -82,17 +82,47 @@ const STEPS = [
  */
 function Info({ title, children }) {
   const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(null);
   const wrap = useRef(null);
+  const pop = useRef(null);
+
+  // Placed with position: fixed and measured here, rather than anchored in the
+  // flow. An absolutely positioned popover next to a control on the right of
+  // the screen adds scrollable overflow, and under mobile emulation that
+  // widens the layout viewport — so clamping it against window.innerWidth
+  // chases a number the popover itself has already moved. Taking it out of
+  // flow removes the feedback loop, and clientWidth then stays put.
+  useLayoutEffect(() => {
+    if (!open) { setAt(null); return; }
+    const btn = wrap.current?.querySelector(".info-btn");
+    const el = pop.current;
+    if (!btn || !el) return;
+    const b = btn.getBoundingClientRect();
+    const gutter = 12;
+    const room = document.documentElement.clientWidth - gutter - el.offsetWidth;
+    // Flip above the button when there is no room beneath it. Opening below
+    // the fold would be unreadable, and scrolling to it closes it.
+    const below = b.bottom + 7;
+    const fits = below + el.offsetHeight <= document.documentElement.clientHeight - gutter;
+    setAt({
+      top: fits ? below : Math.max(gutter, b.top - 7 - el.offsetHeight),
+      left: Math.max(gutter, Math.min(b.left - 8, room)),
+    });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const away = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false); };
     const key = (e) => { if (e.key === "Escape") setOpen(false); };
+    // Fixed position cannot follow the page, so close rather than drift.
+    const scrolled = () => setOpen(false);
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", key);
+    window.addEventListener("scroll", scrolled, true);
     return () => {
       document.removeEventListener("pointerdown", away);
       document.removeEventListener("keydown", key);
+      window.removeEventListener("scroll", scrolled, true);
     };
   }, [open]);
 
@@ -104,7 +134,10 @@ function Info({ title, children }) {
         onClick={() => setOpen((o) => !o)}
       >i</button>
       {open && (
-        <span className="info-pop" role="tooltip">
+        <span
+          className="info-pop" role="tooltip" ref={pop}
+          style={at ? { top: at.top, left: at.left } : { visibility: "hidden" }}
+        >
           <b>{title}</b>
           {children}
         </span>
@@ -608,6 +641,9 @@ export default function PensionPlanner() {
   const [s, setS] = useState(loadState);
   const [step, setStep] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  // One phase editor open at a time. Four expanded editors were most of step
+  // 04's length, and nobody tunes four withdrawal rates at once.
+  const [openPhase, setOpenPhase] = useState(null);
 
   const update = (patch) => setS((prev) => {
     const next = { ...prev, ...patch };
@@ -624,10 +660,32 @@ export default function PensionPlanner() {
     phases: s.phases.map((p, j) => (j === i ? { ...p, ...patch } : p)),
   });
 
+  // The last phase carries a sentinel length because it always runs to the end.
+  // Appending after it makes that length real, so hand it half of what is left
+  // — otherwise the new phase is born spanning 90 to 90 with nothing in it.
+  // Open it straight away: adding a phase and seeing nothing editable appear
+  // reads as a bug.
+  const addPhase = () => {
+    const last = s.phases.length - 1;
+    const room = Math.max(END_AGE - spans[last].from, 2);
+    const keep = Math.max(1, Math.min(30, Math.round(room / 2)));
+    const kept = s.phases.map((p, i) => (i === last ? { ...p, years: keep } : p));
+    update({ phases: [...kept, { rate: 3, years: 99, label: "New phase" }] });
+    setOpenPhase(s.phases.length);
+  };
+
+  // Remove only appears inside the open phase's own editor, so the phase being
+  // removed is always the open one — there is no later index to shift down.
+  const removePhase = (i) => {
+    update({ phases: s.phases.filter((_, j) => j !== i) });
+    setOpenPhase(null);
+  };
+
   const P = useMemo(() => project(s), [s]);
   const spans = useMemo(() => phaseSpans(s), [s]);
   const start = incomeStartAge(s);
   const showToday = s.showToday;
+  const lumpMode = s.taxFreeMode === "lump";
 
   const go = (i) => {
     setStep(Math.max(0, Math.min(STEPS.length - 1, i)));
@@ -967,69 +1025,88 @@ export default function PensionPlanner() {
 
             <div className="card">
               <h3>Phases</h3>
-              {s.phases.map((p, i) => {
-                const isLast = i === s.phases.length - 1;
-                return (
-                  <div className="phase" key={i}>
-                    <div className="phase-head">
-                      <span className="swatch" style={{ background: phaseVar(i) }}>{i + 1}</span>
-                      <input
-                        className="nm" value={p.label} aria-label={`Phase ${i + 1} name`}
-                        onChange={(e) => updatePhase(i, { label: e.target.value })}
-                      />
-                      {s.phases.length > 1 && (
-                        <button
-                          type="button" className="btn"
-                          onClick={() => update({ phases: s.phases.filter((_, j) => j !== i) })}
-                        >Remove</button>
-                      )}
-                    </div>
-                    <div className="phase-span">
-                      {isLast
-                        ? `Age ${spans[i].from} onwards, until the pot runs out or ${END_AGE}.`
-                        : `Age ${spans[i].from} to ${spans[i].to}.`}
-                    </div>
-                    <Control
-                      id={`rate-${i}`} label="Withdrawal rate" value={p.rate} min={1} max={15} step={0.25}
-                      fmt={(v) => `${v}%`} onChange={(v) => updatePhase(i, { rate: v })}
-                      note={p.rate > 6 ? "Above a sustainable rate — the pot will drain."
-                        : p.rate <= 4 ? "Conservative; likely to last." : "Moderate."}
-                      info={i === 0
-                        ? "The share of the remaining pot you take each year. Above about 5%, the pot usually shrinks faster than it grows, so income falls year after year."
-                        : undefined}
-                    />
-                    {!isLast && (
-                      <Control
-                        id={`yrs-${i}`} label="Lasts for" value={p.years} min={1} max={30} step={1}
-                        fmt={(v) => (v === 1 ? "1 year" : `${v} years`)}
-                        onChange={(v) => updatePhase(i, { years: v })}
-                        note="Changing this shifts every later phase."
-                      />
-                    )}
-                  </div>
-                );
-              })}
-              <button
-                type="button" className="btn btn-add" disabled={s.phases.length >= 4}
-                onClick={() => update({ phases: [...s.phases, { rate: 3, years: 99, label: "New phase" }] })}
-              >Add a phase</button>
+              <p className="tcap">
+                The bar is your whole retirement, split by rate. Tap a phase to change it.
+              </p>
 
               <div className="timeline">
                 {spans.map((sp, i) => (
                   <i key={i} style={{
                     width: `${((sp.to - sp.from) / Math.max(END_AGE - start, 1)) * 100}%`,
-                    background: phaseVar(i), opacity: 0.7,
+                    background: phaseVar(i),
+                    opacity: openPhase === null || openPhase === i ? 0.85 : 0.28,
                   }} />
                 ))}
               </div>
-              <div className="tl-key">
-                {spans.map((sp, i) => (
-                  <span key={i}>
-                    <i style={{ background: phaseVar(i) }} />
-                    {sp.from}–{sp.isLast ? END_AGE : sp.to} at {sp.rate}%
-                  </span>
-                ))}
-              </div>
+
+              {/* Collapsed rows carry the two things people scan for — the age
+                  span and the rate — so the editor only opens when there is
+                  something to change. The rows double as the timeline's key. */}
+              <ul className="ph-list">
+                {s.phases.map((p, i) => {
+                  const sp = spans[i];
+                  const open = openPhase === i;
+                  const to = sp.isLast ? END_AGE : sp.to;
+                  const name = p.label || `Phase ${i + 1}`;
+                  return (
+                    <li className={`ph-item${open ? " is-open" : ""}`} key={i}>
+                      <button
+                        type="button" className="ph-row"
+                        aria-expanded={open} aria-controls={`ph-body-${i}`}
+                        aria-label={`${name}, age ${sp.from} to ${to}, ${p.rate}%`}
+                        onClick={() => setOpenPhase(open ? null : i)}
+                      >
+                        <span className="swatch" style={{ background: phaseVar(i) }} aria-hidden="true">{i + 1}</span>
+                        <span className="ph-name">{name}</span>
+                        <span className="ph-span">{sp.from}&ndash;{to}</span>
+                        <span className="ph-rate" style={{ color: phaseVar(i) }}>{p.rate}%</span>
+                        <span className="ph-chev" aria-hidden="true" />
+                      </button>
+                      {open && (
+                        <div className="ph-body" id={`ph-body-${i}`}>
+                          <label className="ph-field">
+                            <span>Name</span>
+                            <input
+                              className="nm" value={p.label}
+                              onChange={(e) => updatePhase(i, { label: e.target.value })}
+                            />
+                          </label>
+                          <div className="phase-span">
+                            {sp.isLast
+                              ? `Age ${sp.from} onwards, until the pot runs out or ${END_AGE}.`
+                              : `Age ${sp.from} to ${sp.to}.`}
+                          </div>
+                          <Control
+                            id={`rate-${i}`} label="Withdrawal rate" value={p.rate} min={1} max={15} step={0.25}
+                            fmt={(v) => `${v}%`} onChange={(v) => updatePhase(i, { rate: v })}
+                            note={p.rate > 6 ? "Above a sustainable rate — the pot will drain."
+                              : p.rate <= 4 ? "Conservative; likely to last." : "Moderate."}
+                            info="The share of the remaining pot you take each year. Above about 5%, the pot usually shrinks faster than it grows, so income falls year after year."
+                          />
+                          {!sp.isLast && (
+                            <Control
+                              id={`yrs-${i}`} label="Lasts for" value={p.years} min={1} max={30} step={1}
+                              fmt={(v) => (v === 1 ? "1 year" : `${v} years`)}
+                              onChange={(v) => updatePhase(i, { years: v })}
+                              note="Changing this shifts every later phase."
+                            />
+                          )}
+                          {s.phases.length > 1 && (
+                            <button type="button" className="btn ph-remove" onClick={() => removePhase(i)}>
+                              Remove this phase
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <button
+                type="button" className="btn btn-add" disabled={s.phases.length >= 4}
+                onClick={addPhase}
+              >Add a phase</button>
             </div>
           </section>
         )}
@@ -1043,7 +1120,14 @@ export default function PensionPlanner() {
               inflation quietly doing its work.
             </p>
             <div className="card">
-              <h3>Pot value, age {s.currentAge} to {END_AGE}</h3>
+              <h3>
+                Pot value, age {s.currentAge} to {END_AGE}
+                <Info title="Future £ and today’s £">
+                  The bars are the cash that will show in the account. The dashed line is what that
+                  money buys in today’s prices. They drift apart because {s.inflation}% inflation
+                  compounds over {END_AGE - s.currentAge} years.
+                </Info>
+              </h3>
               <Chart years={P.years} showToday={showToday} />
               <div className="legend">
                 <span><i style={{ background: "var(--accent-2)" }} />Building up</span>
@@ -1055,10 +1139,31 @@ export default function PensionPlanner() {
             </div>
 
             <div className="card">
-              <h3>Pot at key ages</h3>
+              <h3>
+                Pot at key ages
+                <Info title="What the pot column means">
+                  The balance left at the end of that year, after contributions, growth and anything
+                  you took out. It is not what you could spend that year.
+                </Info>
+              </h3>
               <p className="tcap">
                 Balance at the end of each year, after anything taken that year. {basisCaption(showToday)}
               </p>
+              <div className="tkey">
+                <span>
+                  Rate
+                  <Info title="Withdrawal rate">
+                    The share of the remaining pot taken that year. A dash means you are not drawing yet.
+                  </Info>
+                </span>
+                <span>
+                  Phase
+                  <Info title="Building up and depleted">
+                    &ldquo;Building up&rdquo; is before income starts. &ldquo;Depleted&rdquo; means the
+                    pot hit zero &mdash; the projection keeps running but pays nothing.
+                  </Info>
+                </span>
+              </div>
               <div className="tbl-scroll">
                 <table>
                   <thead>
@@ -1125,12 +1230,24 @@ export default function PensionPlanner() {
                 </span>
               </span>
               <span className="e">
-                <span className="k">Taxable, lifetime</span>
+                <span className="k">
+                  Taxable, lifetime
+                  <Info title="Marginal rate">
+                    The rate on your top slice of income &mdash; 20%, 40% or 45%. This total is before
+                    any tax, so what you keep is lower.
+                  </Info>
+                </span>
                 <span className="v">{money(showToday ? totals.today : totals.cash)}</span>
                 <span className="s">taxed at your marginal rate</span>
               </span>
               <span className="e">
-                <span className="k">Tax-free, lifetime</span>
+                <span className="k">
+                  Tax-free, lifetime
+                  <Info title={`The ${full(TAX_FREE_CAP)} cap`}>
+                    A lifetime limit on tax-free cash across all your pensions. Once you reach it,
+                    every further payment is taxable, however large the pot.
+                  </Info>
+                </span>
                 <span className="v">{money(showToday ? totals.tfToday : totals.tfCash)}</span>
                 <span className="s">
                   {s.taxFreeMode === "ufpls"
@@ -1146,10 +1263,43 @@ export default function PensionPlanner() {
               <h3>Payment schedule</h3>
               <p className="tcap">
                 {s.taxFreeMode === "lump"
-                  ? "Tax-free cash is a separate payment; the income column is taxable in full. The monthly column counts drawdown only, so it is blank in years you take tax-free cash and nothing else."
+                  ? "Tax-free cash is a separate payment; the income column is taxable in full."
                   : `Each payment splits ${s.taxFreePct}/${100 - s.taxFreePct} between tax free and taxable, until the lifetime cap runs out.`}
                 {" "}{basisCaption(showToday)}
               </p>
+              <div className="tkey">
+                <span>
+                  {lumpMode ? "Tax-free cash" : "Tax-free part"}
+                  <Info title={lumpMode ? "Tax-free cash" : "Tax-free part"}>
+                    {lumpMode
+                      ? "Paid when you move part of the pot into drawdown. It is not taxable income and does not use your Personal Allowance."
+                      : `The ${s.taxFreePct}% of each payment that is free of tax. It does not use your Personal Allowance.`}
+                  </Info>
+                </span>
+                <span>
+                  {lumpMode ? "Annual income" : "Taxable part"}
+                  <Info title={lumpMode ? "Annual income" : "Taxable part"}>
+                    {lumpMode
+                      ? "Drawdown only. It does not include the tax-free cash shown in the same row. Taxable in full."
+                      : "The rest of each payment. Taxed as income at your marginal rate."}
+                  </Info>
+                </span>
+                <span>
+                  Monthly drawdown
+                  <Info title="Monthly drawdown">
+                    {lumpMode
+                      ? "The annual drawdown divided by twelve. Blank in years you take tax-free cash and no income."
+                      : "The whole payment divided by twelve, tax-free part included — so it is more than the taxable column divided by twelve."}
+                  </Info>
+                </span>
+                <span>
+                  Total paid out
+                  <Info title="Total paid out">
+                    Every payment added up across the whole projection. It is not money available at
+                    any one moment.
+                  </Info>
+                </span>
+              </div>
               <div className="tbl-scroll">
                 <table>
                   <thead>

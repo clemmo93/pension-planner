@@ -1,12 +1,19 @@
 :root {
   --bg: #f7f3ea; --surface: #fffdf8; --surface-2: #f0e9db; --raise: #ffffff;
   --line: #e2d8c4; --line-strong: #cfc1a6;
-  --ink: #241f16; --ink-2: #5d5545; --ink-3: #7b7260;
+  /* ink-3 darkened from #7b7260: the footer line and the secondary basis
+     figures in table cells measured 4.29:1 and 4.14:1, both under AA. */
+  --ink: #241f16; --ink-2: #5d5545; --ink-3: #736a59;
   --accent: #7d6220; --accent-2: #a8862f; --accent-wash: rgba(125, 98, 32, .09);
   --good: #2b6b4a; --good-wash: rgba(43, 107, 74, .10);
   --warn: #8d5512; --warn-wash: rgba(141, 85, 18, .10);
   --crit: #9c352b; --crit-wash: rgba(156, 53, 43, .10);
-  --p1: #7d6220; --p2: #a9522a; --p3: #5f4494; --p4: #1f6485;
+  /* p2 darkened from #a9522a: as a phase rate on --surface-2 it measured
+     4.43:1, just under AA. Everywhere else it was already comfortable. */
+  --p1: #7d6220; --p2: #a34d26; --p3: #5f4494; --p4: #1f6485;
+  /* Text drawn ON a phase colour. The phase palette inverts between themes,
+     so a fixed white swatch label dropped to 2.1:1 in the dark theme. */
+  --on-phase: #fffdf8;
   --grid: rgba(36, 31, 22, .10);
   --shadow: 0 1px 2px rgba(36, 31, 22, .06), 0 8px 24px -12px rgba(36, 31, 22, .18);
   --r: 12px;
@@ -25,6 +32,7 @@
     --warn: #e6ab5c; --warn-wash: rgba(230, 171, 92, .13);
     --crit: #ea8878; --crit-wash: rgba(234, 136, 120, .13);
     --p1: #d0ae62; --p2: #dd9070; --p3: #a189d2; --p4: #6fb0d8;
+  --on-phase: #181309;
     --grid: rgba(242, 233, 214, .10);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
   }
@@ -39,6 +47,7 @@
   --warn: #e6ab5c; --warn-wash: rgba(230, 171, 92, .13);
   --crit: #ea8878; --crit-wash: rgba(234, 136, 120, .13);
   --p1: #d0ae62; --p2: #dd9070; --p3: #a189d2; --p4: #6fb0d8;
+  --on-phase: #181309;
   --grid: rgba(242, 233, 214, .10);
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
 }
@@ -223,17 +232,21 @@ h2.h {
 
 .info { position: relative; display: inline-block; margin-left: 5px; vertical-align: middle; }
 .info-btn {
-  width: 17px; height: 17px; padding: 0; border-radius: 50%;
+  position: relative;
+  width: 18px; height: 18px; padding: 0; border-radius: 50%;
   border: 1px solid var(--line-strong); background: var(--surface-2);
   color: var(--ink-2); font-size: 10px; font-weight: 700; font-style: italic;
   line-height: 1; cursor: pointer; font-family: Georgia, serif;
 }
+/* The dot stays small so it does not shout next to a 10px label, but the tap
+   area is 26px square — WCAG 2.2 asks for at least 24. */
+.info-btn::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
 .info-btn:hover, .info-btn[aria-expanded="true"] {
   border-color: var(--accent); color: var(--accent);
 }
 .info-pop {
-  position: absolute; z-index: 30; top: calc(100% + 7px); left: -8px;
-  width: max-content; max-width: min(280px, calc(100vw - 48px));
+  position: fixed; z-index: 60; top: 0; left: 0;
+  width: max-content; max-width: min(280px, calc(100vw - 24px));
   background: var(--raise); border: 1px solid var(--line-strong);
   border-radius: 10px; padding: 11px 13px; box-shadow: var(--shadow);
   font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--ink-2);
@@ -331,27 +344,62 @@ h2.h {
 .echo .s { display: block; font-size: 11px; color: var(--ink-2); }
 
 /* --- phases --- */
-.phase {
-  background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: 10px; padding: 14px; margin-bottom: 10px;
-}
-.phase-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .swatch {
   width: 20px; height: 20px; border-radius: 6px; flex: none;
   display: grid; place-items: center;
-  font-size: 10px; font-weight: 700; color: #fff;
+  font-size: 10px; font-weight: 700; color: var(--on-phase);
 }
-.phase-head .nm {
-  flex: 1; min-width: 0; margin-left: -6px; padding: 3px 6px;
-  background: transparent; border: 1px solid transparent; border-radius: 6px;
-  font-size: 13px; font-weight: 600;
-}
-.phase-head .nm:hover { border-color: var(--line-strong); background: var(--surface); }
-.phase-head .nm:focus { border-color: var(--accent); background: var(--raise); }
 .phase-span {
-  margin: 0 0 12px 28px; font-size: 11px; color: var(--ink-2);
+  margin: 0 0 14px; font-size: 11px; color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
+
+/* Collapsed phase rows. No overflow clipping on the item: an open editor
+   contains a tooltip, and a scroll container would cut the popover off. */
+.ph-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.ph-item {
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; margin-bottom: 8px;
+}
+.ph-item.is-open { border-color: var(--accent); background: var(--raise); }
+.ph-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  min-height: 56px; padding: 10px 12px; border-radius: 9px;
+  background: none; border: 0; text-align: left; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.ph-row:hover { background: var(--surface); }
+.ph-item.is-open .ph-row:hover { background: transparent; }
+.ph-name {
+  flex: 1; min-width: 0; font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ph-span { flex: none; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.ph-rate {
+  flex: none; min-width: 44px; text-align: right;
+  font-family: var(--display); font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ph-chev {
+  flex: none; width: 7px; height: 7px; margin: 0 2px 0 0;
+  border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
+  transform: rotate(-45deg); transition: transform .15s ease;
+}
+.ph-item.is-open .ph-chev { transform: rotate(45deg); border-color: var(--accent); }
+.ph-body { padding: 2px 14px 14px; }
+.ph-field { display: block; margin-bottom: 12px; }
+.ph-field > span {
+  display: block; margin-bottom: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.ph-field .nm {
+  width: 100%; padding: 7px 9px; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+}
+.ph-field .nm:focus { border-color: var(--accent); background: var(--raise); }
+.ph-remove { margin-top: 6px; }
 
 .btn {
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
@@ -368,14 +416,9 @@ h2.h {
 
 .timeline {
   display: flex; gap: 2px; height: 9px; border-radius: 5px;
-  overflow: hidden; margin: 14px 0 8px;
+  overflow: hidden; margin: 0 0 12px;
 }
-.tl-key {
-  display: flex; gap: 12px; flex-wrap: wrap;
-  font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums;
-}
-.tl-key span { display: flex; align-items: center; gap: 5px; }
-.tl-key i { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+.timeline i { transition: opacity .15s ease; }
 
 /* --- chart --- */
 .chart-wrap svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
@@ -430,6 +473,14 @@ h2.h {
 .linked span { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
 .linked b { display: block; margin-bottom: 2px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .linked:has(input:checked) b { color: var(--accent); }
+/* Header help sits above the table, not in the <th>: .tbl-scroll scrolls on x,
+   which clips on y too, so a popover anchored in a header cell is cut off. */
+.tkey {
+  display: flex; gap: 6px 16px; flex-wrap: wrap; align-items: center;
+  margin: 0 0 10px; font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+}
+.tkey > span { display: inline-flex; align-items: center; }
 .tbl-scroll { overflow-x: auto; margin: 0 -4px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 th {
