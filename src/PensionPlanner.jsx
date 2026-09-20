@@ -1146,7 +1146,7 @@ export default function PensionPlanner() {
               <h3>Payment schedule</h3>
               <p className="tcap">
                 {s.taxFreeMode === "lump"
-                  ? "Tax-free cash is a separate payment; the income column is taxable in full."
+                  ? "Tax-free cash is a separate payment; the income column is taxable in full. The monthly column counts drawdown only, so it is blank in years you take tax-free cash and nothing else."
                   : `Each payment splits ${s.taxFreePct}/${100 - s.taxFreePct} between tax free and taxable, until the lifetime cap runs out.`}
                 {" "}{basisCaption(showToday)}
               </p>
@@ -1157,7 +1157,7 @@ export default function PensionPlanner() {
                       <th>Age</th><th>Rate</th>
                       <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}</th>
                       <th>{s.taxFreeMode === "lump" ? "Annual income" : "Taxable part"}</th>
-                      <th>Monthly total</th>
+                      <th>Monthly drawdown</th>
                     </tr>
                   </thead>
                   <tbody>
