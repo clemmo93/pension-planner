@@ -27,7 +27,7 @@
     --bg: #0f0d09; --surface: #181309; --surface-2: #211a0f; --raise: #252017;
     --line: rgba(240, 230, 210, .12); --line-strong: rgba(240, 230, 210, .22);
     --ink: #f2e9d6; --ink-2: #c0b39a; --ink-3: #a1947c;
-    --accent: #d0ae62; --accent-2: #c4a45a; --accent-wash: rgba(208, 174, 98, .12);
+    --accent: #d0ae62; --accent-2: #a8863f; --accent-wash: rgba(208, 174, 98, .12);
     --good: #7fc79a; --good-wash: rgba(127, 199, 154, .13);
     --warn: #e6ab5c; --warn-wash: rgba(230, 171, 92, .13);
     --crit: #ea8878; --crit-wash: rgba(234, 136, 120, .13);
@@ -42,7 +42,7 @@
   --bg: #0f0d09; --surface: #181309; --surface-2: #211a0f; --raise: #252017;
   --line: rgba(240, 230, 210, .12); --line-strong: rgba(240, 230, 210, .22);
   --ink: #f2e9d6; --ink-2: #c0b39a; --ink-3: #a1947c;
-  --accent: #d0ae62; --accent-2: #c4a45a; --accent-wash: rgba(208, 174, 98, .12);
+  --accent: #d0ae62; --accent-2: #a8863f; --accent-wash: rgba(208, 174, 98, .12);
   --good: #7fc79a; --good-wash: rgba(127, 199, 154, .13);
   --warn: #e6ab5c; --warn-wash: rgba(230, 171, 92, .13);
   --crit: #ea8878; --crit-wash: rgba(234, 136, 120, .13);
@@ -180,10 +180,10 @@ button, input { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .fig .s { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-2); }
-.spark { flex: none; width: 104px; height: 38px; }
-/* Below this the fixed sparkline takes more than a third of the bar and
-   squeezes both figures. The real chart is on step 04; this one is a glance. */
-@media (max-width: 380px) { .spark { display: none; } }
+/* The silhouette is the one view the ladder on step 05 gives up, so it has to
+   survive every width. It used to be dropped below 380px because a fixed
+   104px ate a third of the bar; scaling it keeps it instead. */
+.spark { flex: none; width: clamp(62px, 20vw, 104px); height: 38px; }
 
 /* --- step nav: the numbering is a real sequence --- */
 .steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 18px; }
@@ -481,6 +481,56 @@ h2.h {
   letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
 }
 .tkey > span { display: inline-flex; align-items: center; }
+/* Present to assistive tech, absent from the layout. */
+.vh {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* --- pot ladder: one row per year, age running down the page --- */
+.ladder {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+.ladder thead th {
+  padding: 0 0 6px; border-bottom: 1px solid var(--line-strong);
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.ladder thead th:first-child { text-align: left; width: 28px; }
+.ladder thead th:last-child { text-align: right; width: 76px; }
+.lrow > * { padding: 0; border: 0; vertical-align: middle; height: 13px; line-height: 13px; }
+.lage {
+  width: 28px; text-align: left; font-size: 9.5px; font-weight: 400;
+  color: var(--ink-3);
+}
+.lval {
+  width: 76px; text-align: right; font-size: 10px; font-weight: 400;
+  color: var(--ink-3); white-space: nowrap;
+}
+.lbar { padding: 0 8px !important; }
+/* Plain years are packed tight so 61 of them read as a shape rather than a
+   list; the key ages below open back up to carry their labels. */
+.lbar .track { position: relative; display: block; height: 11px; }
+.lbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; }
+/* The tail is the future-£ figure, the fill what it buys today. One bar, and
+   the lighter remainder is the part inflation takes. */
+.lbar .tail { opacity: .3; }
+.lbar .fill { opacity: .95; }
+
+/* Key ages carry the labels people scan for and get room to breathe. */
+.is-key > * { height: auto; line-height: 1.25; padding-top: 5px; padding-bottom: 5px; }
+.is-key .lage { font-size: 11.5px; font-weight: 700; color: var(--ink); }
+.is-key .lval { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.is-key .lbar .track { height: 15px; }
+/* Where saving stops and drawing starts. */
+.is-start > * { border-top: 1px solid var(--line-strong); padding-top: 7px !important; }
+.lmark {
+  display: block; margin-top: 1px;
+  font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--accent);
+}
+
 .tbl-scroll { overflow-x: auto; margin: 0 -4px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 th {

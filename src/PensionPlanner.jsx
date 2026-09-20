@@ -406,124 +406,70 @@ function Spark({ years, showToday }) {
   );
 }
 
-function Chart({ years, showToday }) {
-  const [hover, setHover] = useState(null);
-  const ref = useRef(null);
-  const W = 520, H = 236, padL = 48, padR = 8, padT = 32, padB = 30;
-  const plotW = W - padL - padR, plotH = H - padT - padB;
-  const n = years.length;
-  const vals = years.map((y) => (showToday ? y.potToday : y.pot));
-  const max = Math.max(...vals, 1);
-  const bw = Math.max(1.5, plotW / n - 1.5);
-  const xOf = (i) => padL + i * (plotW / n);
-
-  const pick = (clientX) => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    const frac = ((clientX - r.left) / r.width * W - padL) / plotW;
-    const i = Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1))));
-    setHover(years[i].age);
-  };
-
-  const marks = [];
-  const tf = years.findIndex((y) => y.taxFree > 0);
-  const dd = years.findIndex((y) => y.drawing);
-  if (tf >= 0) marks.push({ i: tf, color: "var(--accent)", label: "Tax-free cash", row: 0 });
-  if (dd >= 0) marks.push({ i: dd, color: "var(--good)", label: "Income begins", row: 1 });
-
-  const row = hover === null ? null : years.find((y) => y.age === hover);
+/**
+ * The pot year by year, as a vertical ladder.
+ *
+ * Age runs down the page, so the time axis gets the scroll direction and about
+ * four times the room it had lying on its side — every year is a real row
+ * instead of a 3.6px bar you cannot tap. It replaces both the horizontal chart
+ * and the separate key-ages table, which were two readings of one dataset in
+ * two cards. The at-a-glance silhouette stays with the sparkline in the header.
+ *
+ * Each bar carries both bases at once: the pale tail is future £, the solid
+ * fill is today's £, and the gap between them is inflation. Every row is a real
+ * table row, so the figures are finally reachable by a screen reader — the old
+ * chart was a single role="img" with the data locked inside it.
+ */
+function PotLadder({ years, showToday, keyAges, start, taxFreeAge, depletedAge }) {
+  const max = Math.max(...years.map((y) => y.pot), 1);
+  const keys = new Set(keyAges);
 
   return (
-    <div className="chart-wrap">
-      <svg
-        ref={ref} viewBox={`0 0 ${W} ${H}`} role="img"
-        aria-label={`Projected pension pot from age ${years[0]?.age} to ${END_AGE}`}
-        onMouseMove={(e) => pick(e.clientX)}
-        onMouseLeave={() => setHover(null)}
-        onTouchMove={(e) => pick(e.touches[0].clientX)}
-      >
-        {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-          const y = padT + plotH - f * plotH;
+    <table className="ladder">
+      <caption className="vh">
+        Projected pension pot for each year from age {years[0]?.age} to {END_AGE}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Age</th>
+          <th scope="col" className="vh">Pot, relative size</th>
+          <th scope="col">{showToday ? "Today\u2019s \u00a3" : "Future \u00a3"}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {years.map((y) => {
+          const isKey = keys.has(y.age);
+          // Accumulation and drawdown are only a hue apart, and phase 1's gold
+          // sits right next to the building-up gold. A rule at the boundary is
+          // what actually tells you where your working life ends.
+          const isStart = y.age === start;
+          const mark = y.age === start ? "Income begins"
+            : y.age === taxFreeAge ? "Tax-free cash"
+            : y.age === depletedAge ? "Runs dry" : null;
+          const colour = !y.drawing
+            ? "var(--accent-2)"
+            : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)";
           return (
-            <g key={f}>
-              <line x1={padL} y1={y} x2={W - padR} y2={y} style={{ stroke: "var(--grid)" }} strokeWidth="1" />
-              <text x={padL - 6} y={y + 3.5} textAnchor="end" fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>
-                {money(f * max)}
-              </text>
-            </g>
+            <tr
+              key={y.age}
+              className={`lrow${isKey ? " is-key" : ""}${mark ? " is-mark" : ""}${isStart ? " is-start" : ""}`}
+            >
+              <th scope="row" className="lage">{y.age}</th>
+              <td className="lbar">
+                <span className="track">
+                  <i className="tail" style={{ width: `${(y.pot / max) * 100}%`, background: colour }} />
+                  <i className="fill" style={{ width: `${(y.potToday / max) * 100}%`, background: colour }} />
+                </span>
+              </td>
+              <td className="lval">
+                {money(showToday ? y.potToday : y.pot)}
+                {mark && <span className="lmark">{mark}</span>}
+              </td>
+            </tr>
           );
         })}
-
-        {years.map((y, i) => {
-          const v = showToday ? y.potToday : y.pot;
-          const h = (v / max) * plotH;
-          return (
-            <g key={y.age}>
-              <rect
-                x={xOf(i)} y={padT + plotH - h} width={bw} height={Math.max(h, 0)} rx="1"
-                opacity={hover !== null && y.age !== hover ? 0.42 : 0.92}
-                style={{ fill: !y.drawing ? "var(--accent-2)" : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)" }}
-              />
-              {y.age % 10 === 0 && (
-                <text x={xOf(i) + bw / 2} y={H - 10} textAnchor="middle" fontSize="9" fontFamily="DM Sans, sans-serif" style={{ fill: "var(--ink-3)" }}>
-                  {y.age}
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-        {!showToday && (
-          <polyline
-            fill="none" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round"
-            style={{ stroke: "var(--ink-3)" }}
-            points={years.map((y, i) => `${xOf(i) + bw / 2},${Math.max(padT + plotH - (y.potToday / max) * plotH, padT)}`).join(" ")}
-          />
-        )}
-
-        {marks.map((m) => {
-          const x = xOf(m.i) + bw / 2;
-          const ly = 13 + m.row * 12;
-          const anchor = x > W - 70 ? "end" : x < padL + 40 ? "start" : "middle";
-          return (
-            <g key={m.label}>
-              <line x1={x} y1={ly + 3} x2={x} y2={padT + plotH} style={{ stroke: m.color }} strokeWidth="1" strokeDasharray="3,3" />
-              <text
-                x={anchor === "end" ? x - 4 : anchor === "start" ? x + 4 : x} y={ly}
-                textAnchor={anchor} fontSize="8.5" fontWeight="600"
-                fontFamily="DM Sans, sans-serif" style={{ fill: m.color }}
-              >
-                {m.label}
-              </text>
-            </g>
-          );
-        })}
-
-        {row && (
-          <line
-            x1={xOf(years.indexOf(row)) + bw / 2} y1={padT}
-            x2={xOf(years.indexOf(row)) + bw / 2} y2={padT + plotH}
-            style={{ stroke: "var(--ink)" }} strokeWidth="1" opacity=".5"
-          />
-        )}
-      </svg>
-
-      <div className="readout">
-        {!row ? (
-          <span>Hover or drag across the chart to read any year.</span>
-        ) : (
-          <>
-            <span>Age <b>{row.age}</b></span>
-            <span>Pot <b>{full(showToday ? row.potToday : row.pot)}</b></span>
-            {row.annual > 0 ? (
-              <span>Income <b>{full(showToday ? row.monthlyToday : row.monthly)}</b>/mo at {row.rate}%</span>
-            ) : (
-              <span className="muted">Still building</span>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+      </tbody>
+    </table>
   );
 }
 
@@ -1131,81 +1077,39 @@ export default function PensionPlanner() {
           <section aria-labelledby="h4t">
             <h2 className="h" id="h4t">What happens to the pot</h2>
             <p className="lede">
-              Bars are the pot in <strong>future £</strong> — the cash showing in the account that year.
-              The dashed line is the same pot in <strong>today&rsquo;s £</strong>. The gap between them is
-              inflation quietly doing its work.
+              One bar for every year of your life from {s.currentAge} to {END_AGE}. The solid part is
+              what the pot buys in <strong>today&rsquo;s £</strong>; the pale tail is the bigger number
+              that will show in the account. The gap between them is inflation quietly doing its work.
             </p>
             <div className="card">
               <h3>
                 Pot value, age {s.currentAge} to {END_AGE}
-                <Info title="Future £ and today’s £">
-                  The bars are the cash that will show in the account. The dashed line is what that
-                  money buys in today’s prices. They drift apart because {s.inflation}% inflation
-                  compounds over {END_AGE - s.currentAge} years.
-                </Info>
-              </h3>
-              <Chart years={P.years} showToday={showToday} />
-              <div className="legend">
-                <span><i style={{ background: "var(--accent-2)" }} />Building up</span>
-                {spans.map((sp, i) => (
-                  <span key={i}><i style={{ background: phaseVar(i) }} />{i + 1}. {sp.label || "Phase"}</span>
-                ))}
-                <span><i className="dash" />Today&rsquo;s £</span>
-              </div>
-            </div>
-
-            <div className="card">
-              <h3>
-                Pot at key ages
-                <Info title="What the pot column means">
-                  The balance left at the end of that year, after contributions, growth and anything
-                  you took out. It is not what you could spend that year.
+                <Info title="Reading the bars">
+                  Each bar is one year. The solid part is what the pot buys in today&rsquo;s prices;
+                  the pale tail is the larger number that will actually show in the account. The gap
+                  between them is {s.inflation}% inflation, compounding over {END_AGE - s.currentAge} years.
                 </Info>
               </h3>
               <p className="tcap">
-                Balance at the end of each year, after anything taken that year. {basisCaption(showToday)}
+                Balance at the end of each year, after anything taken that year.
               </p>
-              <div className="tkey">
-                <span>
-                  Rate
-                  <Info title="Withdrawal rate">
-                    The share of the remaining pot taken that year. A dash means you are not drawing yet.
-                  </Info>
-                </span>
-                <span>
-                  Phase
-                  <Info title="Building up and depleted">
-                    &ldquo;Building up&rdquo; is before income starts. &ldquo;Depleted&rdquo; means the
-                    pot hit zero &mdash; the projection keeps running but pays nothing.
-                  </Info>
-                </span>
-              </div>
-              <div className="tbl-scroll">
-                <table>
-                  <thead>
-                    <tr><th>Age</th><th>Pot</th><th>Rate</th><th>Phase</th></tr>
-                  </thead>
-                  <tbody>
-                    {potAges.map((a) => {
-                      const r = P.years.find((y) => y.age === a);
-                      if (!r) return null;
-                      const col = r.phaseIndex >= 0 ? phaseVar(r.phaseIndex) : undefined;
-                      const name = r.phaseIndex >= 0 && s.phases[r.phaseIndex]
-                        ? `${r.phaseIndex + 1}. ${s.phases[r.phaseIndex].label || "Phase"}`
-                        : r.drawing ? "Depleted" : "Building up";
-                      return (
-                        <tr key={a} className={a === start ? "key-row" : undefined}>
-                          <td>{a}</td>
-                          <td><Cell cash={r.pot} today={r.potToday} showToday={showToday} /></td>
-                          <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
-                            {r.rate > 0 ? `${r.rate}%` : "—"}
-                          </td>
-                          <td style={col ? { color: col } : undefined} className={col ? undefined : "muted"}>{name}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <PotLadder
+                years={P.years} showToday={showToday} keyAges={potAges} start={start}
+                taxFreeAge={P.taxFreePayments[0]?.age}
+                depletedAge={depleted?.age}
+              />
+              <div className="legend">
+                <span><i style={{ background: "var(--accent-2)" }} />Building up</span>
+                {spans.map((sp, i) => (
+                  <span key={i}>
+                    <i style={{ background: phaseVar(i) }} />
+                    {i + 1}. {sp.label || "Phase"} &middot; {sp.rate}%
+                  </span>
+                ))}
+                {/* Only worth a key when there are red bars on screen to explain. */}
+                {depleted && (
+                  <span><i style={{ background: "var(--crit)" }} />Pot empty &middot; nothing paid</span>
+                )}
               </div>
             </div>
 
