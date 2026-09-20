@@ -14,6 +14,9 @@ export const END_AGE = 90;
  * skipped when those two ages happen to coincide.
  */
 export function incomeStartAge(s) {
+  // Taking 25% of each payment needs no separate crystallisation event, so
+  // there is no tax-free age to wait for — income starts when you say it does.
+  if (s.taxFreeMode === "ufpls") return s.drawdownAge;
   return Math.max(s.drawdownAge, s.taxFreeTakeAge);
 }
 
@@ -34,6 +37,7 @@ export function project(s) {
   const years = [];
   const contributions = [];
   const start = incomeStartAge(s);
+  const ufpls = s.taxFreeMode === "ufpls";
 
   // Map each age to the phase governing it, so the rate lookup is a plain read.
   const byAge = {};
@@ -102,7 +106,7 @@ export function project(s) {
     let taxFreeThisYear = 0;
     const pct = s.taxFreePct / 100;
     const lsaLeft = TAX_FREE_CAP - taxFreeTotal;
-    const inTaxFreeWindow = age >= s.taxFreeTakeAge && age < s.taxFreeTakeAge + s.taxFreeYears;
+    const inTaxFreeWindow = !ufpls && age >= s.taxFreeTakeAge && age < s.taxFreeTakeAge + s.taxFreeYears;
     if (inTaxFreeWindow && taxFreeTaken < s.taxFreeYears && pct > 0 && lsaLeft > 0.01 && uncrystallised > 0) {
       const yearsLeft = s.taxFreeYears - taxFreeTaken;
       let slice = uncrystallised / yearsLeft;
@@ -125,9 +129,20 @@ export function project(s) {
     // and it leaves the uncrystallised part intact to keep growing behind any
     // remaining tax-free slices.
     let drawn = 0;
+    let taxable = 0;
     const available = uncrystallised + crystallised;
     if (drawing && available > 0) {
       drawn = available * (phase.rate / 100);
+      if (ufpls) {
+        // Every payment is part tax free, part taxable, until the lifetime
+        // allowance for tax-free cash runs out. Nothing is set aside up front.
+        const freeNow = Math.min(drawn * pct, TAX_FREE_CAP - taxFreeTotal);
+        taxFreeThisYear = Math.max(freeNow, 0);
+        taxFreeTotal += taxFreeThisYear;
+        taxable = drawn - taxFreeThisYear;
+      } else {
+        taxable = drawn;
+      }
       const fromCrystallised = Math.min(drawn, crystallised);
       crystallised -= fromCrystallised;
       uncrystallised = Math.max(uncrystallised - (drawn - fromCrystallised), 0);
@@ -144,8 +159,13 @@ export function project(s) {
       drawing,
       phaseIndex: drawing ? phase.index : -1,
       rate: drawing ? phase.rate : 0,
-      annual: drawn,
-      annualToday: drawn / deflator,
+      // `annual` is the TAXABLE money received; `withdrawal` is everything the
+      // drawdown takes out. They are the same under a lump sum, because the
+      // tax-free cash was taken separately. Under UFPLS they differ.
+      annual: taxable,
+      annualToday: taxable / deflator,
+      withdrawal: drawn,
+      withdrawalToday: drawn / deflator,
       monthly: drawn / 12,
       monthlyToday: drawn / 12 / deflator,
       taxFree: taxFreeThisYear,
@@ -162,7 +182,8 @@ export function project(s) {
         years.push({
           age: a, pot: 0, potToday: 0, potGross: 0, potGrossToday: 0,
           drawing: true, phaseIndex: -1, rate: 0,
-          annual: 0, annualToday: 0, monthly: 0, monthlyToday: 0,
+          annual: 0, annualToday: 0, withdrawal: 0, withdrawalToday: 0,
+          monthly: 0, monthlyToday: 0,
           taxFree: 0, taxFreeToday: 0, uncrystallised: 0, crystallised: 0,
           paidIn: contributedTotal, paidInToday: contributedTotalToday,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
@@ -173,7 +194,7 @@ export function project(s) {
   }
 
   const depleted = years.find((y) => y.drawing && y.pot <= 0) || null;
-  const firstIncome = years.find((y) => y.annual > 0) || null;
+  const firstIncome = years.find((y) => y.withdrawal > 0) || null;
   const atRetirement = years.find((y) => y.age === start) || null;
 
   return {

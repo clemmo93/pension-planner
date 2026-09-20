@@ -399,6 +399,37 @@ h2.h {
 .tcap b { color: var(--ink); font-weight: 600; }
 /* Controls that shape the chart above them, set off from its caption. */
 .after-chart { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+/* --- a choice between two ways of doing something, each needing a sentence --- */
+.modes { display: flex; flex-direction: column; gap: 8px; }
+.modes button {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px;
+}
+.modes button:hover { border-color: var(--line-strong); }
+.modes button[aria-checked="true"] {
+  border-color: var(--accent); background: var(--accent-wash);
+}
+.modes b {
+  display: block; margin-bottom: 3px;
+  font-size: 13.5px; font-weight: 600; color: var(--ink);
+}
+.modes button[aria-checked="true"] b { color: var(--accent); }
+.modes span { display: block; font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+
+/* --- an option that drives another control --- */
+.linked {
+  display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 18px;
+}
+.linked:hover { border-color: var(--line-strong); }
+.linked:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
+.linked input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+.linked span { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+.linked b { display: block; margin-bottom: 2px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.linked:has(input:checked) b { color: var(--accent); }
 .tbl-scroll { overflow-x: auto; margin: 0 -4px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 th {

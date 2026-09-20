@@ -19,6 +19,10 @@ const DEFAULTS = {
   taxFreeTakeAge: 57,
   taxFreeYears: 1,
   drawdownAge: 57,
+  // "lump" crystallises slices and pays the tax-free cash up front.
+  // "ufpls" leaves the pot alone and makes every payment 25% tax free.
+  taxFreeMode: "lump",
+  drawdownFollowsTaxFree: false,
   phases: [
     { rate: 6, years: 10, label: "Active early retirement" },
     { rate: 5, years: 10, label: "Standard drawdown" },
@@ -607,6 +611,11 @@ export default function PensionPlanner() {
 
   const update = (patch) => setS((prev) => {
     const next = { ...prev, ...patch };
+    // Keep the linked drawdown age in step with the tax-free settings, wherever
+    // the change came from — the age slider, the phasing, or the mode.
+    if (next.drawdownFollowsTaxFree && next.taxFreeMode === "lump") {
+      next.drawdownAge = Math.min(75, Math.max(55, next.taxFreeTakeAge + next.taxFreeYears));
+    }
     saveState(next);
     return next;
   });
@@ -804,8 +813,8 @@ export default function PensionPlanner() {
           <section aria-labelledby="h2t">
             <h2 className="h" id="h2t">Taking your money out</h2>
             <p className="lede">
-              You can normally take <strong>25% tax free</strong>, capped at {full(TAX_FREE_CAP)}. Taking it in
-              one lump is simplest; spreading it over several years leaves more invested for longer.
+              You get <strong>25% tax free</strong>, capped at {full(TAX_FREE_CAP)} over your lifetime. Take it
+              as cash up front, or let a quarter of every payment come to you tax free instead.
             </p>
             <div className="echo">
               <span className="e">
@@ -817,19 +826,52 @@ export default function PensionPlanner() {
                     : `${s.taxFreePct}% of the pot at ${s.taxFreeTakeAge}`}
                 </span>
               </span>
-              <span className="e">
-                <span className="k">{s.taxFreeYears > 1 ? "Each year" : "As one lump"}</span>
-                <span className="v">{money(P.taxFreeTotal / s.taxFreeYears)}</span>
-                <span className="s">
-                  {s.taxFreeYears > 1
-                    ? `ages ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}`
-                    : "tax free"}
+              {s.taxFreeMode === "lump" ? (
+                <span className="e">
+                  <span className="k">{s.taxFreeYears > 1 ? "Each year" : "As one lump"}</span>
+                  <span className="v">{money(P.taxFreeTotal / s.taxFreeYears)}</span>
+                  <span className="s">
+                    {s.taxFreeYears > 1
+                      ? `ages ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}`
+                      : "tax free"}
+                  </span>
                 </span>
-              </span>
+              ) : (
+                <span className="e">
+                  <span className="k">Tax free until</span>
+                  <span className="v">
+                    {(() => {
+                      const capped = P.years.find((y) => y.withdrawal > 0 && y.taxFree < y.withdrawal * (s.taxFreePct / 100) - 0.01);
+                      return capped ? `age ${capped.age}` : "age 90";
+                    })()}
+                  </span>
+                  <span className="s">then payments are fully taxable</span>
+                </span>
+              )}
             </div>
 
             <div className="card">
-              <h3>Tax-free cash</h3>
+              <h3>How you take it</h3>
+              <div className="modes" role="radiogroup" aria-label="How to take tax-free cash">
+                <button
+                  type="button" role="radio" aria-checked={s.taxFreeMode === "lump"}
+                  onClick={() => update({ taxFreeMode: "lump" })}
+                >
+                  <b>As a lump sum</b>
+                  <span>Take the tax-free cash up front, in one go or over a few years. Income is taxable after that.</span>
+                </button>
+                <button
+                  type="button" role="radio" aria-checked={s.taxFreeMode === "ufpls"}
+                  onClick={() => update({ taxFreeMode: "ufpls" })}
+                >
+                  <b>25% of every payment</b>
+                  <span>Take nothing up front. A quarter of each withdrawal is tax free until the lifetime cap is used up.</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free share"}</h3>
               <Control
                 id="tfpct" label="Tax-free share" value={s.taxFreePct} min={0} max={25} step={1}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ taxFreePct: v })}
@@ -838,6 +880,13 @@ export default function PensionPlanner() {
                   : "Below the 25% maximum — the rest stays invested."}
                 info={`A quarter of whatever you move into drawdown comes to you tax free, up to ${full(TAX_FREE_CAP)} across your lifetime. The other three quarters stay invested and are taxed only when you withdraw them.`}
               />
+              {s.taxFreeMode === "ufpls" && (
+                <p className="tcap" style={{ margin: "10px 0 0" }}>
+                  Nothing is taken up front. Each withdrawal is {s.taxFreePct}% tax free until
+                  you have had {full(TAX_FREE_CAP)} in total, after which payments are fully taxable.
+                </p>
+              )}
+              {s.taxFreeMode === "lump" && <>
               <Control
                 id="tfage" label="Take it from age" value={s.taxFreeTakeAge} min={55} max={75} step={1}
                 fmt={(v) => String(v)} onChange={(v) => update({ taxFreeTakeAge: v })}
@@ -854,6 +903,7 @@ export default function PensionPlanner() {
                   : `Phased over ${s.taxFreeTakeAge}–${s.taxFreeTakeAge + s.taxFreeYears - 1}. Each slice is taken from a pot that has had longer to grow.`}
                 info="You do not have to move the whole pot into drawdown at once. Take it in slices and the part you have not touched keeps growing, so later slices release more tax-free cash. Providers call this phased crystallisation. It makes no difference once you reach the lifetime cap."
               />
+              </>}
             </div>
           </section>
         )}
@@ -880,12 +930,27 @@ export default function PensionPlanner() {
 
             <div className="card">
               <h3>Start of drawdown</h3>
+              {s.taxFreeMode === "lump" && (
+                <label className="linked">
+                  <input
+                    type="checkbox" checked={s.drawdownFollowsTaxFree}
+                    onChange={(e) => update({ drawdownFollowsTaxFree: e.target.checked })}
+                  />
+                  <span>
+                    <b>Start when the tax-free cash ends</b>
+                    Income begins at {Math.min(75, Math.max(55, s.taxFreeTakeAge + s.taxFreeYears))}, the
+                    year after the last tax-free payment. Those years are then entirely tax free.
+                  </span>
+                </label>
+              )}
               <Control
                 id="ddage" label="Start drawing at" value={s.drawdownAge} min={55} max={75} step={1}
-                fmt={(v) => String(v)} onChange={(v) => update({ drawdownAge: v })}
-                note={s.taxFreeTakeAge > s.drawdownAge
-                  ? `Income waits until ${start}, when tax-free cash is taken.`
-                  : `Contributions stop at ${start}.`}
+                fmt={(v) => String(v)} onChange={(v) => update({ drawdownAge: v, drawdownFollowsTaxFree: false })}
+                note={s.drawdownFollowsTaxFree && s.taxFreeMode === "lump"
+                  ? "Following the tax-free settings. Move this slider to unlink it."
+                  : s.taxFreeTakeAge > s.drawdownAge && s.taxFreeMode === "lump"
+                    ? `Income waits until ${start}, when tax-free cash is taken.`
+                    : `Contributions stop at ${start}.`}
                 info="The age you start taking a regular income. Contributions stop at the same point, so retiring later means both a bigger pot and fewer years to fund."
               />
             </div>
@@ -1050,25 +1115,37 @@ export default function PensionPlanner() {
                 </span>
               </span>
               <span className="e">
-                <span className="k">Drawdown, lifetime</span>
+                <span className="k">Taxable, lifetime</span>
                 <span className="v">{money(showToday ? totals.today : totals.cash)}</span>
-                <span className="s">taxable as income</span>
+                <span className="s">taxed at your marginal rate</span>
               </span>
               <span className="e">
                 <span className="k">Tax-free, lifetime</span>
                 <span className="v">{money(showToday ? totals.tfToday : totals.tfCash)}</span>
-                <span className="s">{s.taxFreeYears > 1 ? `${s.taxFreeYears} tranches` : "one lump sum"}</span>
+                <span className="s">
+                  {s.taxFreeMode === "ufpls"
+                    ? "spread across every payment"
+                    : s.taxFreeYears > 1 ? `${s.taxFreeYears} tranches` : "one lump sum"}
+                </span>
               </span>
             </div>
 
             <div className="card">
               <h3>Payment schedule</h3>
-              <p className="tcap">{basisCaption(showToday)}</p>
+              <p className="tcap">
+                {s.taxFreeMode === "lump"
+                  ? "Tax-free cash is a separate payment; the income column is taxable in full."
+                  : `Each payment splits ${s.taxFreePct}/${100 - s.taxFreePct} between tax free and taxable, until the lifetime cap runs out.`}
+                {" "}{basisCaption(showToday)}
+              </p>
               <div className="tbl-scroll">
                 <table>
                   <thead>
                     <tr>
-                      <th>Age</th><th>Rate</th><th>Tax-free cash</th><th>Annual income</th><th>Monthly income</th>
+                      <th>Age</th><th>Rate</th>
+                      <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}</th>
+                      <th>{s.taxFreeMode === "lump" ? "Annual income" : "Taxable part"}</th>
+                      <th>Monthly total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1089,7 +1166,7 @@ export default function PensionPlanner() {
                           <td>{r.annual > 0
                             ? <Cell cash={r.annual} today={r.annualToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
-                          <td>{r.annual > 0
+                          <td>{r.withdrawal > 0
                             ? <Cell cash={r.monthly} today={r.monthlyToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
                         </tr>
