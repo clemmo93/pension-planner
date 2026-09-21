@@ -4,3 +4,8 @@ dist/
 *.local
 .env
 .env.*
+
+# Symlink to this project's Claude memory, which lives in ~/.claude and is
+# keyed to the project's path. Local only: it holds a transcript path and
+# working notes that do not belong in a public repo.
+memory
