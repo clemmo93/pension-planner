@@ -499,16 +499,19 @@ h2.h {
 }
 .ladder thead th:first-child { text-align: left; width: 28px; }
 .ladder thead th:last-child { text-align: right; width: 76px; }
-.lrow > * { padding: 0; border: 0; vertical-align: middle; height: 13px; line-height: 13px; }
+/* Every row is the same height, without exception. Age is the vertical axis
+   here, so a taller row is a longer year — key ages and markers earn their
+   emphasis from weight and colour, never from space. */
+.lrow > * { padding: 0; border: 0; vertical-align: middle; height: 16px; line-height: 16px; }
 .lage {
-  width: 28px; text-align: left; font-size: 9.5px; font-weight: 400;
+  width: 28px; text-align: left; font-size: 10px; font-weight: 400;
   color: var(--ink-3);
 }
 .lval {
   width: 76px; text-align: right; font-size: 10px; font-weight: 400;
   color: var(--ink-3); white-space: nowrap;
 }
-.lbar { padding: 0 8px !important; }
+.lbar { position: relative; padding: 0 8px !important; }
 /* Plain years are packed tight so 61 of them read as a shape rather than a
    list; the key ages below open back up to carry their labels. */
 .lbar .track { position: relative; display: block; height: 11px; }
@@ -518,17 +521,20 @@ h2.h {
 .lbar .tail { opacity: .3; }
 .lbar .fill { opacity: .95; }
 
-/* Key ages carry the labels people scan for and get room to breathe. */
-.is-key > * { height: auto; line-height: 1.25; padding-top: 5px; padding-bottom: 5px; }
-.is-key .lage { font-size: 11.5px; font-weight: 700; color: var(--ink); }
-.is-key .lval { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.is-key .lbar .track { height: 15px; }
-/* Where saving stops and drawing starts. */
-.is-start > * { border-top: 1px solid var(--line-strong); padding-top: 7px !important; }
+.is-key .lage { font-size: 11px; font-weight: 700; color: var(--ink); }
+.is-key .lval { font-size: 11.5px; font-weight: 700; color: var(--ink); }
+/* Where saving stops and drawing starts. An inset shadow rather than a border:
+   a collapsed border is shared with the row above and made it half a pixel
+   taller than its neighbours. */
+.is-start > * { box-shadow: inset 0 1px 0 var(--line-strong); }
+/* Sits over the bar, out of the layout, on a chip so it stays readable
+   whatever length the bar happens to be that year. */
 .lmark {
-  display: block; margin-top: 1px;
-  font-size: 9px; font-weight: 700; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--accent);
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  padding: 0 4px; border-radius: 3px; background: var(--surface);
+  font-size: 8.5px; font-weight: 700; letter-spacing: .05em; line-height: 14px;
+  text-transform: uppercase; color: var(--accent); white-space: nowrap;
+  pointer-events: none;
 }
 
 .tbl-scroll { overflow-x: auto; margin: 0 -4px; }

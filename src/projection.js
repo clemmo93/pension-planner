@@ -201,7 +201,20 @@ export function project(s) {
   // Derived from what was actually paid, never from the requested settings, so
   // a label can never claim a tranche the projection did not produce.
   const taxFreePayments = years.filter((y) => y.taxFree > 0);
-  const depleted = years.find((y) => y.drawing && y.pot <= 0) || null;
+  // A pot drawn at a percentage of whatever is left decays geometrically: it
+  // approaches zero without reaching it, so `pot <= 0` never fires however hard
+  // the plan is pushed. Drawing 15% a year leaves £1,257 at 90 and the old test
+  // called that "comfortably sustainable".
+  //
+  // What actually fails is the pot becoming too small to live on. The test is
+  // against the first year's income, which scales with the plan rather than
+  // hard-coding a figure, and in today's money, because the nominal pot keeps
+  // climbing for years after the real one has collapsed.
+  const paying = years.filter((y) => y.withdrawal > 0);
+  const openingIncome = paying.length ? paying[0].withdrawalToday : 0;
+  const depleted = openingIncome > 0
+    ? years.find((y) => y.drawing && y.potToday < openingIncome) || null
+    : null;
   const firstIncome = years.find((y) => y.withdrawal > 0) || null;
   const atRetirement = years.find((y) => y.age === start) || null;
 

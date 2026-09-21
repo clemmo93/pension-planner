@@ -445,7 +445,7 @@ function PotLadder({ years, showToday, keyAges, start, taxFreeAge, depletedAge }
           const isStart = y.age === start;
           const mark = y.age === start ? "Income begins"
             : y.age === taxFreeAge ? "Tax-free cash"
-            : y.age === depletedAge ? "Runs dry" : null;
+            : y.age === depletedAge ? "Runs low" : null;
           const colour = !y.drawing
             ? "var(--accent-2)"
             : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)";
@@ -460,11 +460,13 @@ function PotLadder({ years, showToday, keyAges, start, taxFreeAge, depletedAge }
                   <i className="tail" style={{ width: `${(y.pot / max) * 100}%`, background: colour }} />
                   <i className="fill" style={{ width: `${(y.potToday / max) * 100}%`, background: colour }} />
                 </span>
-              </td>
-              <td className="lval">
-                {money(showToday ? y.potToday : y.pot)}
+                {/* Floated over the bar rather than stacked under the figure:
+                    a marker that adds a line would make its row taller than
+                    every other year, and bend the age axis at exactly the
+                    point people look hardest. */}
                 {mark && <span className="lmark">{mark}</span>}
               </td>
+              <td className="lval">{money(showToday ? y.potToday : y.pot)}</td>
             </tr>
           );
         })}
@@ -666,7 +668,7 @@ export default function PensionPlanner() {
           <div className="verdict-top">
             <span className={`chip ${chipClass}`}>
               <span className="dot" />
-              {depleted ? `Runs dry at ${depleted.age}` : `Lasts beyond ${END_AGE}`}
+              {depleted ? `Runs low at ${depleted.age}` : `Lasts beyond ${END_AGE}`}
             </span>
             <button type="button" className="hiw-btn" onClick={() => setHelpOpen(true)}>
               <span aria-hidden="true">i</span> How it works
@@ -946,7 +948,7 @@ export default function PensionPlanner() {
                 <span className="s">a month from {start}</span>
               </span>
               <span className="e">
-                <span className="k">{depleted ? "Pot exhausted" : `Still going at ${END_AGE}`}</span>
+                <span className="k">{depleted ? "Pot runs low" : `Still going at ${END_AGE}`}</span>
                 <span className="v">
                   {depleted
                     ? `age ${depleted.age}`
@@ -954,7 +956,11 @@ export default function PensionPlanner() {
                         ? P.years[P.years.length - 1].potToday
                         : P.years[P.years.length - 1].pot)}
                 </span>
-                <span className="s">{depleted ? "lower a rate to extend it" : "comfortably sustainable"}</span>
+                <span className="s">
+                  {depleted
+                    ? "under a year of your starting income left — lower a rate"
+                    : "income holds its value"}
+                </span>
               </span>
             </div>
 
@@ -1106,8 +1112,9 @@ export default function PensionPlanner() {
                     {i + 1}. {sp.label || "Phase"} &middot; {sp.rate}%
                   </span>
                 ))}
-                {/* Only worth a key when there are red bars on screen to explain. */}
-                {depleted && (
+                {/* Keyed off the bars themselves, not off `depleted`: a pot can
+                    run low without any year ever paying nothing. */}
+                {P.years.some((y) => y.drawing && y.phaseIndex < 0) && (
                   <span><i style={{ background: "var(--crit)" }} />Pot empty &middot; nothing paid</span>
                 )}
               </div>
