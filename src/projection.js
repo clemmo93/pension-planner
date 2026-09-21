@@ -33,6 +33,21 @@ export function phaseSpans(s) {
   return out;
 }
 
+/**
+ * The withdrawal rate at which the pot holds its value in today's money.
+ *
+ * Each year the pot grows then gives up a share of itself: pot(1+g)(1-r).
+ * That is level in real terms when it equals (1+i), so r* = (g - i)/(1 + g).
+ * It depends only on growth and inflation — not on the size of the pot, the
+ * age, or which phase you are in — so one number describes a whole plan.
+ *
+ * Zero or negative when growth does not beat inflation: no rate preserves the
+ * pot, and callers have to say so rather than print a nonsense figure.
+ */
+export function sustainableRate(s) {
+  return (s.growth - s.inflation) / (1 + s.growth / 100);
+}
+
 export function project(s) {
   const years = [];
   const contributions = [];
@@ -201,20 +216,6 @@ export function project(s) {
   // Derived from what was actually paid, never from the requested settings, so
   // a label can never claim a tranche the projection did not produce.
   const taxFreePayments = years.filter((y) => y.taxFree > 0);
-  // A pot drawn at a percentage of whatever is left decays geometrically: it
-  // approaches zero without reaching it, so `pot <= 0` never fires however hard
-  // the plan is pushed. Drawing 15% a year leaves £1,257 at 90 and the old test
-  // called that "comfortably sustainable".
-  //
-  // What actually fails is the pot becoming too small to live on. The test is
-  // against the first year's income, which scales with the plan rather than
-  // hard-coding a figure, and in today's money, because the nominal pot keeps
-  // climbing for years after the real one has collapsed.
-  const paying = years.filter((y) => y.withdrawal > 0);
-  const openingIncome = paying.length ? paying[0].withdrawalToday : 0;
-  const depleted = openingIncome > 0
-    ? years.find((y) => y.drawing && y.potToday < openingIncome) || null
-    : null;
   const firstIncome = years.find((y) => y.withdrawal > 0) || null;
   const atRetirement = years.find((y) => y.age === start) || null;
 
@@ -225,9 +226,9 @@ export function project(s) {
     taxFreePayments,
     contributedTotal,
     contributedTotalToday,
-    depleted,
     firstIncome,
     atRetirement,
     incomeStart: start,
+    sustainableRate: sustainableRate(s),
   };
 }

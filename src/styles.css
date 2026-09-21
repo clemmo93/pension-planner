@@ -285,6 +285,16 @@ h2.h {
 .nudge:active:not(:disabled) { background: var(--accent-wash); }
 .nudge:disabled { opacity: .3; cursor: not-allowed; }
 
+/* Thumb width, needed to place a tick: a range input's travel is inset by half
+   a thumb at each end, so a naive percentage lands off the mark. */
+.ctl-row { --thumb: 24px; }
+.ctl-slider { position: relative; flex: 1; min-width: 0; display: flex; }
+.ctl-mark {
+  position: absolute; top: 50%; z-index: 2; pointer-events: none;
+  left: calc(var(--thumb) / 2 + var(--mark) * (100% - var(--thumb)));
+  width: 2px; height: 15px; margin-top: -7.5px; margin-left: -1px;
+  border-radius: 1px; background: var(--ink-3);
+}
 .ctl-row input[type=range] {
   flex: 1; min-width: 0; margin: 0; height: 42px;
   background: transparent; cursor: pointer;
@@ -314,6 +324,7 @@ h2.h {
 /* Touch devices get a larger thumb and buttons that clear the 44px guideline. */
 @media (pointer: coarse) {
   .nudge { width: 46px; height: 46px; font-size: 21px; }
+  .ctl-row { --thumb: 28px; }
   .ctl-row input[type=range]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -12px; }
   .ctl-row input[type=range]::-moz-range-thumb { width: 28px; height: 28px; }
 }

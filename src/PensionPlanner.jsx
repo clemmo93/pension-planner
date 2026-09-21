@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
-import { project, phaseSpans, incomeStartAge, TAX_FREE_CAP, ANNUAL_ALLOWANCE, END_AGE } from "./projection.js";
+import { project, phaseSpans, incomeStartAge, sustainableRate, TAX_FREE_CAP, ANNUAL_ALLOWANCE, END_AGE } from "./projection.js";
 
 const STORE_KEY = "pension-planner.v3";
 
@@ -258,7 +258,7 @@ function HowItWorks({ onClose }) {
 
 /* ------------------------------------------------------------------ control */
 
-function Control({ id, label, value, onChange, min, max, step, fmt, note, typed, hardMax, info }) {
+function Control({ id, label, value, onChange, min, max, step, fmt, note, typed, hardMax, info, mark }) {
   const [draft, setDraft] = useState(null);
   const shown = draft !== null ? draft : fmt(value);
 
@@ -342,12 +342,24 @@ function Control({ id, label, value, onChange, min, max, step, fmt, note, typed,
           onPointerDown={(e) => { e.preventDefault(); hold(-1); }}
           onPointerUp={release} onPointerLeave={release} onPointerCancel={release}
         >&minus;</button>
-        <input
-          type="range" id={id}
-          min={min} max={max} step={step} value={value}
-          aria-describedby={`${id}-note`}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-        />
+        <span className="ctl-slider">
+          <input
+            type="range" id={id}
+            min={min} max={max} step={step} value={value}
+            aria-describedby={`${id}-note`}
+            onChange={(e) => onChange(parseFloat(e.target.value))}
+          />
+          {/* A reference point on the track. Offset by half a thumb at each end
+              because that is the travel a range input actually has. Skipped
+              when it falls outside the range, where there is nothing to point
+              at and the note says so instead. */}
+          {mark != null && mark >= min && mark <= max && (
+            <i
+              className="ctl-mark" aria-hidden="true"
+              style={{ "--mark": (mark - min) / (max - min) }}
+            />
+          )}
+        </span>
         <button
           type="button" className="nudge" aria-label={`Increase ${label}`}
           disabled={value >= max}
@@ -420,7 +432,7 @@ function Spark({ years, showToday }) {
  * table row, so the figures are finally reachable by a screen reader — the old
  * chart was a single role="img" with the data locked inside it.
  */
-function PotLadder({ years, showToday, keyAges, start, taxFreeAge, depletedAge }) {
+function PotLadder({ years, showToday, keyAges, start, taxFreeAge }) {
   const max = Math.max(...years.map((y) => y.pot), 1);
   const keys = new Set(keyAges);
 
@@ -444,8 +456,7 @@ function PotLadder({ years, showToday, keyAges, start, taxFreeAge, depletedAge }
           // what actually tells you where your working life ends.
           const isStart = y.age === start;
           const mark = y.age === start ? "Income begins"
-            : y.age === taxFreeAge ? "Tax-free cash"
-            : y.age === depletedAge ? "Runs low" : null;
+            : y.age === taxFreeAge ? "Tax-free cash" : null;
           const colour = !y.drawing
             ? "var(--accent-2)"
             : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)";
@@ -640,8 +651,18 @@ export default function PensionPlanner() {
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
-  const { depleted, firstIncome, atRetirement } = P;
-  const chipClass = depleted ? (depleted.age < 80 ? "is-crit" : "is-warn") : "is-good";
+  const { firstIncome, atRetirement } = P;
+  // A percentage of whatever is left cannot reach zero, so the pot always
+  // outlasts the projection. TODO in TODO.md: this chip should describe the
+  // real-terms trajectory instead of restating something always true.
+  const chipClass = "is-good";
+
+  // One number for the whole plan: the rate that holds the pot level in real
+  // terms. Below the slider's floor, or at or under zero, there is no rate
+  // worth pointing at and the copy has to say that rather than print it.
+  const rStar = sustainableRate(s);
+  const rStarText = `${rStar.toFixed(1)}%`;
+  const rStarUsable = rStar > 0;
 
   const incomeRows = P.years.filter((y) => y.annual > 0 || y.taxFree > 0);
   const totals = incomeRows.reduce((a, r) => ({
@@ -668,7 +689,7 @@ export default function PensionPlanner() {
           <div className="verdict-top">
             <span className={`chip ${chipClass}`}>
               <span className="dot" />
-              {depleted ? `Runs low at ${depleted.age}` : `Lasts beyond ${END_AGE}`}
+              {`Lasts beyond ${END_AGE}`}
             </span>
             <button type="button" className="hiw-btn" onClick={() => setHelpOpen(true)}>
               <span aria-hidden="true">i</span> How it works
@@ -948,18 +969,32 @@ export default function PensionPlanner() {
                 <span className="s">a month from {start}</span>
               </span>
               <span className="e">
-                <span className="k">{depleted ? "Pot runs low" : `Still going at ${END_AGE}`}</span>
+                <span className="k">Pot at {END_AGE}</span>
                 <span className="v">
-                  {depleted
-                    ? `age ${depleted.age}`
-                    : money(showToday
-                        ? P.years[P.years.length - 1].potToday
-                        : P.years[P.years.length - 1].pot)}
+                  {money(showToday
+                    ? P.years[P.years.length - 1].potToday
+                    : P.years[P.years.length - 1].pot)}
                 </span>
+                <span className="s">{showToday ? "in today\u2019s \u00a3" : "in future \u00a3"}</span>
+              </span>
+              <span className="e">
+                <span className="k">
+                  Sustainable rate
+                  <Info title="Sustainable rate">
+                    Draw this much each year and the pot holds its value in today&rsquo;s money. It
+                    is set by your growth and inflation rates, not by the size of your pot. Draw
+                    more and the pot shrinks in real terms; draw less and it grows. Most people
+                    spend their pot down across retirement and vary what they take year to year,
+                    so treat it as a reference point, not a target.
+                  </Info>
+                </span>
+                <span className="v">{rStarUsable ? rStarText : "—"}</span>
                 <span className="s">
-                  {depleted
-                    ? "under a year of your starting income left — lower a rate"
-                    : "income holds its value"}
+                  {!rStarUsable
+                    ? "growth does not beat inflation"
+                    : rStar < 1
+                      ? "below the lowest rate you can set"
+                      : "holds the pot level in today\u2019s £"}
                 </span>
               </span>
             </div>
@@ -1044,12 +1079,24 @@ export default function PensionPlanner() {
                               ? `Age ${sp.from} onwards, until the pot runs out or ${END_AGE}.`
                               : `Age ${sp.from} to ${sp.to}.`}
                           </div>
+                          {/* The note used to hard-code 6% and 4%, and the tooltip
+                              a third figure of 5%, none of which moved when growth
+                              or inflation changed. At 3% growth and 2.5% inflation
+                              it called a plan that loses 69% in real terms
+                              "conservative". Both now come from the rate that
+                              actually holds the pot level. */}
                           <Control
                             id={`rate-${i}`} label="Withdrawal rate" value={p.rate} min={1} max={15} step={0.25}
                             fmt={(v) => `${v}%`} onChange={(v) => updatePhase(i, { rate: v })}
-                            note={p.rate > 6 ? "Above a sustainable rate — the pot will drain."
-                              : p.rate <= 4 ? "Conservative; likely to last." : "Moderate."}
-                            info="The share of the remaining pot you take each year. Above about 5%, the pot usually shrinks faster than it grows, so income falls year after year."
+                            mark={rStarUsable ? rStar : null}
+                            note={!rStarUsable
+                              ? "Growth does not beat inflation, so every rate shrinks the pot."
+                              : rStar < 1
+                                ? `Holding the pot level needs ${rStarText} — below the lowest rate here, so any rate shrinks it.`
+                                : p.rate > rStar
+                                  ? `Above ${rStarText} — the pot shrinks in today\u2019s money.`
+                                  : `At or below ${rStarText} — the pot keeps its value.`}
+                            info="The share of the remaining pot you take each year, so the amount changes as the pot does. Drawing more than the sustainable rate shrinks the pot in real terms; drawing less grows it."
                           />
                           {!sp.isLast && (
                             <Control
@@ -1102,7 +1149,6 @@ export default function PensionPlanner() {
               <PotLadder
                 years={P.years} showToday={showToday} keyAges={potAges} start={start}
                 taxFreeAge={P.taxFreePayments[0]?.age}
-                depletedAge={depleted?.age}
               />
               <div className="legend">
                 <span><i style={{ background: "var(--accent-2)" }} />Building up</span>
@@ -1112,8 +1158,8 @@ export default function PensionPlanner() {
                     {i + 1}. {sp.label || "Phase"} &middot; {sp.rate}%
                   </span>
                 ))}
-                {/* Keyed off the bars themselves, not off `depleted`: a pot can
-                    run low without any year ever paying nothing. */}
+                {/* Keyed off the bars themselves: only worth a key when there
+                    are red bars on screen to explain. */}
                 {P.years.some((y) => y.drawing && y.phaseIndex < 0) && (
                   <span><i style={{ background: "var(--crit)" }} />Pot empty &middot; nothing paid</span>
                 )}
