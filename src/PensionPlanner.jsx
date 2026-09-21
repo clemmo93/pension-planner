@@ -8,6 +8,12 @@ const STORE_KEY = "pension-planner.v3";
 // your contributions quietly shrink every year.
 const DEFAULT_INFLATION = 2.5;
 
+// The withdrawal-rate slider's bounds. Named because the copy quotes the floor
+// when the sustainable rate falls below it, and a note that contradicts the
+// slider it sits under would be worse than no note.
+const RATE_MIN = 1;
+const RATE_MAX = 15;
+
 const DEFAULTS = {
   currentAge: 30,
   currentPot: 100000,
@@ -1086,16 +1092,17 @@ export default function PensionPlanner() {
                               "conservative". Both now come from the rate that
                               actually holds the pot level. */}
                           <Control
-                            id={`rate-${i}`} label="Withdrawal rate" value={p.rate} min={1} max={15} step={0.25}
+                            id={`rate-${i}`} label="Withdrawal rate" value={p.rate}
+                            min={RATE_MIN} max={RATE_MAX} step={0.25}
                             fmt={(v) => `${v}%`} onChange={(v) => updatePhase(i, { rate: v })}
                             mark={rStarUsable ? rStar : null}
                             note={!rStarUsable
                               ? "Growth does not beat inflation, so every rate shrinks the pot."
-                              : rStar < 1
-                                ? `Holding the pot level needs ${rStarText} — below the lowest rate here, so any rate shrinks it.`
+                              : rStar < RATE_MIN
+                                ? `The pot only holds its value at ${rStarText} a year or less. The lowest you can set is ${RATE_MIN}%, so every rate here shrinks it.`
                                 : p.rate > rStar
-                                  ? `Above ${rStarText} — the pot shrinks in today\u2019s money.`
-                                  : `At or below ${rStarText} — the pot keeps its value.`}
+                                  ? `Above ${rStarText} a year — the pot shrinks in today\u2019s money.`
+                                  : `At or below ${rStarText} a year — the pot keeps its value.`}
                             info="The share of the remaining pot you take each year, so the amount changes as the pot does. Drawing more than the sustainable rate shrinks the pot in real terms; drawing less grows it."
                           />
                           {!sp.isLast && (
