@@ -151,6 +151,23 @@ product, not decoration.
 - Ladder rows are all one height. Age is the vertical axis, so a taller row
   reads as a longer year.
 - Chart text takes theme tokens, never a literal that works in one theme.
+- **Series colours are their own tokens** (`--s-*`), separate from the phase
+  tokens. Phase colours are validated as text and series colours as fills, and
+  the two floors differ. Run the `dataviz` validator before changing one — the
+  first teal tried here failed the chroma floor and read grey, and the first
+  dark set sat outside the lightness band.
+- **A structural marker never wears a series colour.** The phase indicator was
+  drawn in the phase palette twice — once as a divider swatch, once as a rail —
+  and both times it came out the same marigold and teal as the pot and State
+  Pension bars. Structure is neutral; the label carries it.
+- **Scale to the largest recurring value, not the largest value, but only when
+  you must.** A tax-free lump can be five times the biggest income year, and
+  scaling to it leaves every other bar a stub. Use the true maximum whenever it
+  costs the recurring bars little; fall back otherwise, and mark the overflow
+  with a break, never a fade — a fade reads as unfinished rather than as a
+  value running past the edge.
+- **Compute whether a bar is clipped; never assert it.** Hardcoding the clipped
+  class made full-height bars wear a "this continues" mark.
 
 ## Tables
 
