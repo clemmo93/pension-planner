@@ -341,6 +341,182 @@ function Control({ id, label, value, onChange, min, max, step, fmt, note, typed,
   );
 }
 
+/* ------------------------------------------------------------ income chart */
+
+/* Horizontal, because age is the vertical axis everywhere in this app and a
+   taller row would read as a longer year. One row per year, stacked by where
+   the money comes from.
+
+   The scale is set by the largest RECURRING year, not the largest year. A
+   tax-free lump sum is 5.1x the biggest income year on the defaults, so a
+   shared scale would leave every other bar under a fifth of the width. The
+   lump overflows instead and says so. */
+function IncomeChart({ rows, spans, showToday, monthly, spStarts, selected, onSelect }) {
+  const val = (r, k) => {
+    const cash = showToday ? r[`${k}Today`] : r[k];
+    return monthly && k !== "taxFree" ? cash / 12 : cash;
+  };
+  const parts = (r) => {
+    const state = r.statePension > 0 ? val(r, "statePension") : 0;
+    const pot = val(r, "incomeAnnual") - state;
+    // A one-off lump is not income you get every month, so it never divides.
+    const tf = (showToday ? r.taxFreeToday : r.taxFree) / (monthly ? 12 : 1);
+    return { pot, state, tf, recurring: pot + state };
+  };
+  const scale = incomeScale(rows.map(parts));
+
+  let lastPhase = -1;
+  const out = [];
+  rows.forEach((r) => {
+    if (r.phaseIndex !== lastPhase) {
+      lastPhase = r.phaseIndex;
+      const sp = spans[r.phaseIndex];
+      out.push(
+        <li key={`ph-${r.phaseIndex}`} className="ic-div">
+          {r.phaseIndex < 0 ? (
+            <>Before drawdown<em> &middot; tax-free cash only</em></>
+          ) : (
+            <>
+              Phase {String(r.phaseIndex + 1).padStart(2, "0")}
+              <em> &middot; {sp?.rate}% of the remaining pot each year</em>
+            </>
+          )}
+        </li>
+      );
+    }
+    if (spStarts === r.age) {
+      out.push(
+        <li key="sp-div" className="ic-div is-sp">
+          State Pension starts at {r.age}
+          <em> &middot; counted in every bar below</em>
+        </li>
+      );
+    }
+    const { pot, state, tf, recurring } = parts(r);
+    const pc = (n) => (n / scale) * 100;
+    const room = Math.max(0, 100 - pc(recurring));
+    const tfPc = pc(tf);
+    const clipped = tfPc > room;
+    out.push(
+      <li key={r.age}>
+        <button
+          type="button" className="ic-row" aria-pressed={selected === r.age}
+          onClick={() => onSelect(r.age)}
+          aria-label={`Age ${r.age}, ${money(recurring + tf)}`}
+        >
+          <span className="ic-age">{r.age}</span>
+          <span className="ic-track">
+            {pot > 0 && <i className="s-pot" style={{ width: `${pc(pot)}%` }} />}
+            {state > 0 && <i className="s-state" style={{ width: `${pc(state)}%` }} />}
+            {tf > 0 && (
+              <i
+                className={`s-tf${clipped ? " is-clipped" : ""}`}
+                style={{ width: `${clipped ? room : tfPc}%` }}
+              />
+            )}
+            {tf > 0 && <span className="ic-tfval">{money(tf)} tax free</span>}
+          </span>
+        </button>
+      </li>
+    );
+  });
+  return <ul className="ic">{out}</ul>;
+}
+
+/* Vertical bars, scrolling sideways — the same data as IncomeChart with age on
+   the horizontal axis, which is what most projection charts do and what makes
+   the shape of a retirement legible at a glance. Phases run as a rail beneath
+   the axis, where a span has room to carry its own label. */
+const ICV_COL = 14, ICV_GAP = 3;
+
+/* A tax-free lump can be several times the largest income year, and scaling to
+   it leaves every other bar a stub. Scaling to the recurring maximum instead
+   cuts the tops off the lump years, which reads as a rendering fault rather
+   than as a value running past the edge.
+   So: use the true maximum whenever it costs the recurring bars little, and
+   only fall back to the recurring maximum — with a visible break — when the
+   lump would genuinely crush them. */
+function incomeScale(parts) {
+  const total = Math.max(...parts.map((p) => p.recurring + p.tf), 1);
+  const rec = Math.max(...parts.map((p) => p.recurring), 1);
+  return total <= rec * 1.6 ? total : rec;
+}
+
+function IncomeColumns({ rows, spans, showToday, monthly, spStarts, selected, onSelect }) {
+  const parts = (r) => {
+    const raw = (k) => (showToday ? r[`${k}Today`] : r[k]);
+    const d = monthly ? 12 : 1;
+    const state = r.statePension > 0 ? raw("statePension") / d : 0;
+    const pot = raw("incomeAnnual") / d - state;
+    const tf = raw("taxFree") / d;
+    return { pot, state, tf, recurring: raw("incomeAnnual") / d };
+  };
+  const scale = incomeScale(rows.map(parts));
+  const h = (n) => `${Math.min(100, (n / scale) * 100)}%`;
+
+  // The rail is a second flex row under the columns, so each span has to be as
+  // wide as the columns it covers, gaps included.
+  const rail = [];
+  rows.forEach((r) => {
+    const last = rail[rail.length - 1];
+    if (last && last.i === r.phaseIndex) last.n += 1;
+    else rail.push({ i: r.phaseIndex, n: 1 });
+  });
+
+  return (
+    <div className="icv">
+      <div className="icv-scale" aria-hidden="true">
+        <span>{money(scale)}</span>
+        <span>{money(scale / 2)}</span>
+      </div>
+      <div className="icv-scroll">
+        <div className="icv-inner">
+          <div className="icv-cols">
+            {rows.map((r) => {
+              const { pot, state, tf, recurring } = parts(r);
+              return (
+                <button
+                  key={r.age} type="button"
+                  className={`icv-col${spStarts === r.age ? " is-sp" : ""}`}
+                  aria-pressed={selected === r.age}
+                  onClick={() => onSelect(r.age)}
+                  aria-label={`Age ${r.age}, ${money(recurring + tf)}`}
+                  style={{ width: ICV_COL }}
+                >
+                  <span className="icv-stack">
+                    {tf > 0 && (
+                      <i
+                        className={`s-tf${recurring + tf > scale ? " is-clipped" : ""}`}
+                        style={{ height: h(Math.min(tf, Math.max(0, scale - recurring))) }}
+                      />
+                    )}
+                    {state > 0 && <i className="s-state" style={{ height: h(state) }} />}
+                    {pot > 0 && <i className="s-pot" style={{ height: h(pot) }} />}
+                  </span>
+                  <span className="icv-age">{r.age}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="icv-rail">
+            {rail.map((sp, k) => (
+              <span
+                key={k} className={`icv-span${sp.i < 0 ? " is-pre" : ""}`}
+                style={{ width: sp.n * ICV_COL + (sp.n - 1) * ICV_GAP }}
+              >
+                <i />
+                <em>{sp.i < 0
+                  ? "Tax-free only"
+                  : `${String(sp.i + 1).padStart(2, "0")} \u00b7 ${spans[sp.i]?.rate}%`}</em>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------- dual figures */
 
 /** Every money cell shows both bases; the toggle decides which one leads. */
@@ -571,6 +747,9 @@ export default function PensionPlanner() {
   const [step, setStep] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [incomeView, setIncomeView] = useState("columns");
+  const [incomeMonthly, setIncomeMonthly] = useState(false);
+  const [selectedAge, setSelectedAge] = useState(null);
   // One phase editor open at a time. Four expanded editors were most of step
   // 04's length, and nobody tunes four withdrawal rates at once.
   const [openPhase, setOpenPhase] = useState(null);
@@ -678,7 +857,7 @@ export default function PensionPlanner() {
         BASIS_TERM,
       ],
       [
-        { term: "Monthly income", body: `The year\u2019s income divided by twelve${s.statePension ? `, State Pension included from ${spAge}` : ""}. A one-off tax-free lump sum is left out \u2014 it has its own column, and spreading it over twelve months would suggest an income you do not get every year.` },
+        { term: "Monthly income", body: `The year\u2019s income divided by twelve${s.statePension ? `, State Pension included from ${spAge}` : ""}. Tax-free cash is divided the same way and kept in its own column, so you can see what a year paid without reading a lump sum as money you get every month \u2014 it only lands in the years you take it.` },
         { term: lump ? "Annual income" : "Taxable part",
           body: lump
             ? `What you draw from the pot that year${s.statePension ? `, plus the State Pension once it starts at ${spAge} \u2014 which is why the figure steps up that year` : ""}. Taxable in full. It does not include the tax-free cash in the same row.`
@@ -702,6 +881,21 @@ export default function PensionPlanner() {
     tfCash: a.tfCash + r.taxFree, tfToday: a.tfToday + r.taxFreeToday,
     incCash: a.incCash + r.incomeAnnual, incToday: a.incToday + r.incomeAnnualToday,
   }), { tfCash: 0, tfToday: 0, incCash: 0, incToday: 0 });
+
+  /* The chart opens on a real year rather than empty: the first payment, until
+     a row is picked. Falls back if the selected age drops out of range when
+     the drawdown age moves. */
+  const pickedAge = incomeRows.some((r) => r.age === selectedAge)
+    ? selectedAge : incomeRows[0]?.age ?? null;
+  const picked = incomeRows.find((r) => r.age === pickedAge) ?? null;
+  const pickedParts = (() => {
+    if (!picked) return { pot: 0, state: 0, tf: 0 };
+    const raw = (k) => (showToday ? picked[`${k}Today`] : picked[k]);
+    const state = picked.statePension > 0 ? raw("statePension") : 0;
+    const pot = raw("incomeAnnual") - state;
+    const d = incomeMonthly ? 12 : 1;
+    return { pot: pot / d, state: state / d, tf: raw("taxFree") / d };
+  })();
 
   // The single year the income columns step up, when there is one to flag.
   const spStarts = s.statePension && P.years.some((y) => y.age === spAge && y.incomeAnnual > 0)
@@ -1350,6 +1544,59 @@ export default function PensionPlanner() {
                   a coloured edge on each row, named once here. The heading
                   says what both values are — "01 · 6%" alone never said 6% of
                   what, over what. */}
+              <div className="ic-ctl">
+                <div className="seg" role="group" aria-label="View as">
+                  <button type="button" aria-pressed={incomeView === "columns"}
+                    onClick={() => setIncomeView("columns")}>Columns</button>
+                  <button type="button" aria-pressed={incomeView === "rows"}
+                    onClick={() => setIncomeView("rows")}>Rows</button>
+                  <button type="button" aria-pressed={incomeView === "table"}
+                    onClick={() => setIncomeView("table")}>Table</button>
+                </div>
+                <div className="seg" role="group" aria-label="Show amounts as">
+                  <button type="button" aria-pressed={!incomeMonthly}
+                    onClick={() => setIncomeMonthly(false)}>Annual</button>
+                  <button type="button" aria-pressed={incomeMonthly}
+                    onClick={() => setIncomeMonthly(true)}>Monthly</button>
+                </div>
+              </div>
+              {incomeView !== "table" ? (
+                <>
+                  {picked && (
+                    <div className="ic-read">
+                      <span className="ic-read-age">Age {picked.age}</span>
+                      <span className="ic-read-parts">
+                        <b><i className="s-pot" />{full(pickedParts.pot)}</b> from your pot
+                        {pickedParts.state > 0 && <>, <b><i className="s-state" />{full(pickedParts.state)}</b> State Pension</>}
+                        {pickedParts.tf > 0 && <>, <b><i className="s-tf" />{full(pickedParts.tf)}</b> tax free</>}
+                      </span>
+                      <span className="ic-read-total">
+                        {full(pickedParts.pot + pickedParts.state + pickedParts.tf)}
+                        <em>{incomeMonthly ? "a month" : "that year"}</em>
+                      </span>
+                    </div>
+                  )}
+                  {incomeView === "columns" ? (
+                    <IncomeColumns
+                      rows={incomeRows} spans={spans} showToday={showToday}
+                      monthly={incomeMonthly} spStarts={spStarts}
+                      selected={pickedAge} onSelect={setSelectedAge}
+                    />
+                  ) : (
+                    <IncomeChart
+                      rows={incomeRows} spans={spans} showToday={showToday}
+                      monthly={incomeMonthly} spStarts={spStarts}
+                      selected={pickedAge} onSelect={setSelectedAge}
+                    />
+                  )}
+                  <div className="legend">
+                    <span><i className="s-pot" />From your pot</span>
+                    {s.statePension && <span><i className="s-state" />State Pension</span>}
+                    <span><i className="s-tf" />{lumpMode ? "Tax-free cash" : "Tax-free part"}</span>
+                  </div>
+                </>
+              ) : (
+                <>
               <div className="plegend">
                 <span className="plegend-h">Phase &middot; annual drawdown rate</span>
                 <span className="plegend-row">
@@ -1370,7 +1617,7 @@ export default function PensionPlanner() {
                           The annual breakdown follows. */}
                       <th>Age</th>
                       <th>Monthly income</th>
-                      <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}</th>
+                      <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}{incomeMonthly && " a month"}</th>
                       <th>{s.taxFreeMode === "lump" ? "Annual income" : "Taxable part"}</th>
                     </tr>
                   </thead>
@@ -1405,7 +1652,11 @@ export default function PensionPlanner() {
                             ? <Cell cash={r.incomeMonthly} today={r.incomeMonthlyToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
                           <td>{r.taxFree > 0
-                            ? <Cell cash={r.taxFree} today={r.taxFreeToday} showToday={showToday} fmt={full} />
+                            ? <Cell
+                                cash={r.taxFree / (incomeMonthly ? 12 : 1)}
+                                today={r.taxFreeToday / (incomeMonthly ? 12 : 1)}
+                                showToday={showToday} fmt={full}
+                              />
                             : <span className="muted">—</span>}</td>
                           <td>{r.incomeAnnual > 0
                             ? <Cell cash={r.incomeAnnual} today={r.incomeAnnualToday} showToday={showToday} fmt={full} />
@@ -1425,6 +1676,8 @@ export default function PensionPlanner() {
                   </tfoot>
                 </table>
               </div>
+                </>
+              )}
             </div>
 
             <div className="notes">

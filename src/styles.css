@@ -14,6 +14,9 @@
   /* Text drawn ON a phase colour. The phase palette inverts between themes,
      so a fixed white swatch label dropped to 2.1:1 in the dark theme. */
   --on-phase: #ffffff;
+  /* Chart series. Validated as fills, not text — the phase tokens are text,
+     so these are a separate set. Run the dataviz validator before changing one. */
+  --s-pot: #8f5b00; --s-state: #0a8f86; --s-tf: #5b47a8;
   --grid: rgba(22, 25, 28, .10);
   --shadow: 0 1px 2px rgba(22, 25, 28, .06), 0 8px 24px -12px rgba(22, 25, 28, .20);
   --r: 16px; --r-tile: 12px;
@@ -34,7 +37,9 @@
     --crit: #ef8977; --crit-wash: rgba(239, 137, 119, .13);
     --p1: #f0b429; --p2: #3fb0ac; --p3: #a797e2; --p4: #f0947a;
     --on-phase: #0e1113;
-    --grid: rgba(236, 239, 241, .10);
+    --s-pot: #b0821c; --s-state: #0a8f86; --s-tf: #8f7ed0;
+    --s-pot: #b0821c; --s-state: #0a8f86; --s-tf: #8f7ed0;
+  --grid: rgba(236, 239, 241, .10);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
   }
 }
@@ -699,3 +704,185 @@ tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+
+/* --- step 06's income chart -------------------------------------------------
+   Horizontal because age is the vertical axis everywhere here, and every row
+   is the same height for the same reason the pot ladder's rows are. */
+.ic-ctl { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+.seg {
+  display: flex; gap: 2px; padding: 2px;
+  background: var(--sunk); border-radius: 999px;
+}
+.seg button {
+  border: 0; background: transparent; color: var(--ink-2);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+  padding: 5px 11px; border-radius: 999px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-phase); }
+
+.ic-read {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  background: var(--sunk); border-radius: var(--r-tile);
+  padding: 11px 13px; margin: 0 0 12px;
+}
+.ic-read-age {
+  font-size: 10px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.ic-read-parts { flex: 1 1 100%; font-size: 12.5px; color: var(--ink-2); line-height: 1.6; }
+.ic-read-parts b {
+  color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ic-read-parts i, .legend i.s-pot, .legend i.s-state, .legend i.s-tf {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: 5px; vertical-align: baseline;
+}
+.ic-read-parts i.s-pot, .legend i.s-pot { background: var(--s-pot); }
+.ic-read-parts i.s-state, .legend i.s-state { background: var(--s-state); }
+.ic-read-parts i.s-tf, .legend i.s-tf { background: var(--s-tf); }
+.ic-read-total {
+  flex: 1 1 100%;
+  font-family: var(--display); font-size: 21px; font-weight: 800;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+.ic-read-total em {
+  font-style: normal; margin-left: 6px;
+  font-size: 11px; font-weight: 600; color: var(--ink-2);
+}
+
+.ic { list-style: none; margin: 0; padding: 0; }
+.ic-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.ic-age {
+  flex: none; width: 22px; text-align: right;
+  font-size: 10px; font-weight: 400; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.ic-row[aria-pressed="true"] .ic-age { font-weight: 700; color: var(--ink); }
+/* Same height for every row, without exception — age is the vertical axis. */
+.ic-track {
+  position: relative; flex: 1; min-width: 0;
+  display: flex; gap: 2px; height: 15px; align-items: center;
+}
+.ic-track i { height: 11px; border-radius: 2px; flex: none; min-width: 2px; }
+.ic-track i.s-pot { background: var(--s-pot); }
+.ic-track i.s-state { background: var(--s-state); }
+.ic-track i.s-tf { background: var(--s-tf); }
+/* The lump sum runs past the scale rather than flattening every other bar.
+   The fade says the bar continues; the figure beside it says how far. */
+.ic-track i.s-tf.is-clipped { position: relative; }
+.ic-track i.s-tf.is-clipped::after {
+  content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 6px;
+  border-radius: 0 2px 2px 0;
+  background: repeating-linear-gradient(
+    135deg, var(--surface) 0 2px, transparent 2px 4px);
+}
+.ic-tfval {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  padding: 0 4px; border-radius: 3px; background: var(--surface);
+  font-size: 8.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--s-tf); white-space: nowrap;
+  pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.ic-row:hover .ic-track { background: var(--sunk); border-radius: 3px; }
+.ic-row[aria-pressed="true"] .ic-track { background: var(--accent-wash); border-radius: 3px; }
+
+.ic-div {
+  margin: 9px 0 5px; padding: 5px 0 5px 30px;
+  border-top: 1px solid var(--line);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--ink);
+}
+.ic-div:first-child { margin-top: 0; border-top: 0; }
+.ic-div em {
+  font-style: normal; font-weight: 500; letter-spacing: .01em;
+  text-transform: none; color: var(--ink-2);
+}
+.ic-div.is-sp { color: var(--ink); }
+
+/* --- the same income, as columns scrolling sideways ---
+   Age on the horizontal axis, which is the conventional way to read a
+   projection and the one that makes the shape of a retirement legible. The
+   phase runs as a rail beneath the axis, where a span has room for its label
+   instead of repeating on every year. */
+.icv { position: relative; padding-right: 46px; }
+.icv-scale {
+  position: absolute; right: 0; top: 0; height: 150px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  font-size: 9px; font-weight: 600; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; text-align: right;
+  pointer-events: none;
+}
+/* Two gridlines, no axis. Drawn behind the bars, in the grid token. */
+.icv-scale::before, .icv-scale::after {
+  content: ""; position: absolute; right: 0; width: 100vw;
+  border-top: 1px solid var(--grid);
+}
+.icv-scale::before { top: 5px; }
+.icv-scale::after { top: calc(50% + 2px); }
+.icv-scale span { line-height: 1; }
+
+.icv-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+.icv-scroll::-webkit-scrollbar { height: 5px; }
+.icv-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.icv-inner { width: max-content; }
+
+.icv-cols { display: flex; gap: 3px; align-items: flex-end; }
+.icv-col {
+  flex: none; padding: 0; border: 0; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  font: inherit; color: inherit;
+}
+.icv-stack {
+  height: 150px; display: flex; flex-direction: column; justify-content: flex-end;
+  gap: 2px; border-radius: 3px;
+}
+.icv-stack i { display: block; border-radius: 2px; min-height: 2px; }
+.icv-stack i.s-pot { background: var(--s-pot); }
+.icv-stack i.s-state { background: var(--s-state); }
+.icv-stack i.s-tf { background: var(--s-tf); }
+/* A lump sum is several times the largest income year, so it runs off the top
+   rather than flattening every other column. */
+.icv-stack i.s-tf.is-clipped { position: relative; }
+.icv-stack i.s-tf.is-clipped::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px;
+  border-radius: 2px 2px 0 0;
+  background: repeating-linear-gradient(
+    135deg, var(--surface) 0 2px, transparent 2px 4px);
+}
+.icv-age {
+  font-size: 8.5px; font-weight: 400; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; text-align: center;
+}
+.icv-col[aria-pressed="true"] .icv-stack { outline: 2px solid var(--accent); outline-offset: 2px; }
+.icv-col[aria-pressed="true"] .icv-age { font-weight: 700; color: var(--ink); }
+.icv-col:hover .icv-stack { outline: 2px solid var(--line-strong); outline-offset: 2px; }
+/* The year the State Pension joins the bars. */
+.icv-col.is-sp .icv-stack { box-shadow: -2px 0 0 var(--ink-2); }
+
+.icv-rail { display: flex; gap: 3px; margin-top: 7px; }
+.icv-span { flex: none; min-width: 0; overflow: hidden; }
+/* Neutral, not the phase colour: the phase hues are the same marigold and
+   teal the bars use for pot and State Pension, so a coloured rail made a
+   structural marker wear a series colour. The label carries the phase. */
+.icv-span i {
+  display: block; height: 3px; border-radius: 2px; margin-bottom: 4px;
+  background: var(--line-strong);
+}
+/* A short phase can be narrower than its own label, so truncation shows as an
+   ellipsis rather than a word cut mid-letter. */
+.icv-span em {
+  font-style: normal; display: block;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .04em;
+  color: var(--ink-2); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Years with tax-free cash but no drawdown yet have no phase and no rate. */
+.icv-span.is-pre em { color: var(--ink-3); }

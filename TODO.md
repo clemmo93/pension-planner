@@ -162,10 +162,41 @@ It should describe the real-terms trajectory instead. Candidates:
 
 ## Income tax is not modelled, and the State Pension makes that worse
 
-The full State Pension uses all but £22 of the Personal Allowance, so from
-State Pension age almost every pound drawn from the pot is taxable. The income
-figures are pre-tax and now overstate take-home by roughly a fifth for a basic
-rate payer. Either model basic rate, or make the warning much louder.
+The full State Pension is £12,548 a year against a £12,570 Personal Allowance,
+so from State Pension age almost every pound drawn from the pot is taxable.
+The income figures are pre-tax. The tiles and captions say so — "before tax" —
+but the size of what is missing is not obvious from them.
+
+Worked against the defaults, in today's £, with the allowance frozen in cash:
+
+| | Lifetime, today's £ |
+|---|---|
+| Gross income (what the tile shows) | £947,484 |
+| Covered by the Personal Allowance | £150,313 |
+| Actually taxed on | £797,171 |
+| Tax due | £159,434 — 17% of gross |
+| Net | £788,050 |
+
+**The blocker is that the answer depends on an assumption worth £277,000.**
+Hold the allowance frozen in cash for the whole projection and the taxed-on
+figure is £797,171; let it rise with inflation and it is £520,104. Neither is
+knowable, and sixty years of freeze is not credible. Any tax model here needs
+the allowance and its uprating as visible inputs, not a buried constant — see
+CLAUDE.md on what happened the last time a figure that should move with the
+inputs was hardcoded.
+
+Two things worth recording because they are counter-intuitive:
+
+- **The State Pension is taxable.** It is paid gross, with no tax deducted at
+  source, which is what makes people think otherwise. It consumes the
+  allowance, which is precisely why the drawdown stacked on top of it is taxed
+  almost in full.
+- **"State Pension ≈ Personal Allowance" does not survive the projection.**
+  It holds today. Drawdown starts 27 years out, and an allowance frozen in
+  cash is worth £6,453 in today's money by then, £2,857 by age 90. Excluding
+  the State Pension from the taxable total as an approximation is wrong by
+  £138,000 over the projection, not by the £22 a year the present-day figures
+  suggest.
 
 ## Echo tiles duplicate the verdict bar
 
