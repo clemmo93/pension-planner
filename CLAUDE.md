@@ -14,6 +14,11 @@ src/projection.js       pure maths, no React — the source of every figure
 src/PensionPlanner.jsx  the whole interface
 src/styles.css          tokens, light and dark
 TODO.md                 known gaps, kept current
+
+.claude/skills/design-language/SKILL.md
+                        the visual system: palette, type, the numeral rule,
+                        charts, the shell. Load it before touching styles.css
+                        or putting a new figure on screen.
 ```
 
 `projection.js` imports nothing, so it can be exercised straight from `node`.
