@@ -1,54 +1,54 @@
 :root {
-  --bg: #f7f3ea; --surface: #fffdf8; --surface-2: #f0e9db; --raise: #ffffff;
-  --line: #e2d8c4; --line-strong: #cfc1a6;
-  /* ink-3 darkened from #7b7260: the footer line and the secondary basis
-     figures in table cells measured 4.29:1 and 4.14:1, both under AA. */
-  --ink: #241f16; --ink-2: #5d5545; --ink-3: #736a59;
-  --accent: #7d6220; --accent-2: #a8862f; --accent-wash: rgba(125, 98, 32, .09);
-  --good: #2b6b4a; --good-wash: rgba(43, 107, 74, .10);
-  --warn: #8d5512; --warn-wash: rgba(141, 85, 18, .10);
-  --crit: #9c352b; --crit-wash: rgba(156, 53, 43, .10);
-  /* p2 darkened from #a9522a: as a phase rate on --surface-2 it measured
-     4.43:1, just under AA. Everywhere else it was already comfortable. */
-  --p1: #7d6220; --p2: #a34d26; --p3: #5f4494; --p4: #1f6485;
+  --bg: #f1f2f4; --surface: #ffffff; --sunk: #e7eaed; --raise: #ffffff;
+  --line: #e3e6e8; --line-strong: #cfd5da;
+  --ink: #16191c; --ink-2: #59616a; --ink-3: #5c656d;
+  --accent: #8f5b00; --accent-2: #6f4600; --accent-wash: rgba(143, 91, 0, .09);
+  --good: #1b6647; --good-wash: rgba(27, 102, 71, .10);
+  --crit: #a8342a; --crit-wash: rgba(168, 52, 42, .10);
+  /* Phase 01 is the accent, deliberately. The old file had --p1 and --accent
+     holding the same value by accident, which made the first phase and every
+     interactive affordance indistinguishable. 02-04 are drawn from elsewhere.
+     All four are read as text, not only as fill, so each clears 4.5:1 on its
+     own ground in both themes. */
+  --p1: #8f5b00; --p2: #0f6f6a; --p3: #5b47a8; --p4: #a8401f;
   /* Text drawn ON a phase colour. The phase palette inverts between themes,
      so a fixed white swatch label dropped to 2.1:1 in the dark theme. */
-  --on-phase: #fffdf8;
-  --grid: rgba(36, 31, 22, .10);
-  --shadow: 0 1px 2px rgba(36, 31, 22, .06), 0 8px 24px -12px rgba(36, 31, 22, .18);
-  --r: 12px;
-  --display: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --on-phase: #ffffff;
+  --grid: rgba(22, 25, 28, .10);
+  --shadow: 0 1px 2px rgba(22, 25, 28, .06), 0 8px 24px -12px rgba(22, 25, 28, .20);
+  --r: 16px; --r-tile: 12px;
+  /* One family. The display role is kept as a separate token because it marks
+     the figures and headings, not because it is a different typeface. */
+  --display: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f0d09; --surface: #181309; --surface-2: #211a0f; --raise: #252017;
-    --line: rgba(240, 230, 210, .12); --line-strong: rgba(240, 230, 210, .22);
-    --ink: #f2e9d6; --ink-2: #c0b39a; --ink-3: #a1947c;
-    --accent: #d0ae62; --accent-2: #a8863f; --accent-wash: rgba(208, 174, 98, .12);
-    --good: #7fc79a; --good-wash: rgba(127, 199, 154, .13);
-    --warn: #e6ab5c; --warn-wash: rgba(230, 171, 92, .13);
-    --crit: #ea8878; --crit-wash: rgba(234, 136, 120, .13);
-    --p1: #d0ae62; --p2: #dd9070; --p3: #a189d2; --p4: #6fb0d8;
-  --on-phase: #181309;
-    --grid: rgba(242, 233, 214, .10);
+    --bg: #0e1113; --surface: #171b1e; --sunk: #22272b; --raise: #242a2f;
+    --line: #262c31; --line-strong: #363d43;
+    --ink: #eceff1; --ink-2: #b0b9c0; --ink-3: #8b949b;
+    --accent: #f0b429; --accent-2: #d9a23d; --accent-wash: rgba(240, 180, 41, .12);
+    --good: #5fc79a; --good-wash: rgba(95, 199, 154, .13);
+    --crit: #ef8977; --crit-wash: rgba(239, 137, 119, .13);
+    --p1: #f0b429; --p2: #3fb0ac; --p3: #a797e2; --p4: #f0947a;
+    --on-phase: #0e1113;
+    --grid: rgba(236, 239, 241, .10);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0f0d09; --surface: #181309; --surface-2: #211a0f; --raise: #252017;
-  --line: rgba(240, 230, 210, .12); --line-strong: rgba(240, 230, 210, .22);
-  --ink: #f2e9d6; --ink-2: #c0b39a; --ink-3: #a1947c;
-  --accent: #d0ae62; --accent-2: #a8863f; --accent-wash: rgba(208, 174, 98, .12);
-  --good: #7fc79a; --good-wash: rgba(127, 199, 154, .13);
-  --warn: #e6ab5c; --warn-wash: rgba(230, 171, 92, .13);
-  --crit: #ea8878; --crit-wash: rgba(234, 136, 120, .13);
-  --p1: #d0ae62; --p2: #dd9070; --p3: #a189d2; --p4: #6fb0d8;
-  --on-phase: #181309;
-  --grid: rgba(242, 233, 214, .10);
+  --bg: #0e1113; --surface: #171b1e; --sunk: #22272b; --raise: #242a2f;
+  --line: #262c31; --line-strong: #363d43;
+  --ink: #eceff1; --ink-2: #b0b9c0; --ink-3: #8b949b;
+  --accent: #f0b429; --accent-2: #d9a23d; --accent-wash: rgba(240, 180, 41, .12);
+  --good: #5fc79a; --good-wash: rgba(95, 199, 154, .13);
+  --crit: #ef8977; --crit-wash: rgba(239, 137, 119, .13);
+  --p1: #f0b429; --p2: #3fb0ac; --p3: #a797e2; --p4: #f0947a;
+  --on-phase: #0e1113;
+  --grid: rgba(236, 239, 241, .10);
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
 }
 
@@ -77,8 +77,34 @@ button, input { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
   box-shadow: var(--shadow);
 }
-.verdict-in { max-width: 660px; margin: 0 auto; padding: 12px 16px 10px; }
+.verdict-in {
+  max-width: 660px; margin: 0 auto; padding: 12px 16px 10px;
+  transition: padding .15s ease;
+}
 .verdict-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+
+/* Collapsed past the scroll threshold. The tiles go, the headline figure
+   takes their place on the same row as the chip, and the bar drops to a
+   single line — the answer stays on screen, the furniture does not. */
+.vnow { display: none; }
+.verdict.is-condensed .verdict-in { padding: 7px 16px; }
+.verdict.is-condensed .verdict-top { margin-bottom: 0; }
+.verdict.is-condensed .verdict-top { flex-wrap: nowrap; }
+.verdict.is-condensed .verdict-figs { display: none; }
+.verdict.is-condensed .hiw-btn { display: none; }
+/* Chip, figure and basis toggle come to 377px in a 343px row, so one has to
+   go. The chip is the one: it is hardcoded to "Lasts beyond 90" and never
+   changes, while the figure and the basis it is measured in both do. */
+.verdict.is-condensed .chip { display: none; }
+.verdict.is-condensed .vnow {
+  display: flex; align-items: baseline; gap: 5px; min-width: 0;
+  font-family: var(--display); font-size: 17px; font-weight: 700;
+  letter-spacing: -.01em; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vnow i {
+  font-style: normal; font-size: 11px; font-weight: 600; color: var(--ink-2);
+}
 
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -88,12 +114,11 @@ button, input { font: inherit; color: inherit; }
 }
 .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .chip.is-good { color: var(--good); background: var(--good-wash); border-color: var(--good); }
-.chip.is-warn { color: var(--warn); background: var(--warn-wash); border-color: var(--warn); }
 .chip.is-crit { color: var(--crit); background: var(--crit-wash); border-color: var(--crit); }
 
 .basis {
   margin-left: auto; display: flex; gap: 2px;
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk); border: 1px solid var(--line);
   border-radius: 999px; padding: 2px;
 }
 .basis button {
@@ -101,7 +126,7 @@ button, input { font: inherit; color: inherit; }
   font-size: 11px; font-weight: 600; letter-spacing: .03em;
   padding: 4px 9px; border-radius: 999px; cursor: pointer;
 }
-.basis button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.basis button[aria-pressed="true"] { background: var(--accent); color: var(--on-phase); }
 
 .hiw-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -112,7 +137,7 @@ button, input { font: inherit; color: inherit; }
 .hiw-btn span {
   width: 16px; height: 16px; display: grid; place-items: center;
   border: 1px solid currentColor; border-radius: 50%;
-  font-family: Georgia, serif; font-style: italic; font-size: 10px; font-weight: 700;
+  font-style: italic; font-size: 10px; font-weight: 700;
 }
 /* On a phone the label pushes the basis toggle onto its own line and the
    sticky bar grows to three rows. The icon alone keeps it to one. */
@@ -123,7 +148,7 @@ button, input { font: inherit; color: inherit; }
 
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 100;
-  background: rgba(15, 13, 9, .55);
+  background: rgba(8, 10, 12, .60);
   display: flex; justify-content: center; align-items: flex-start;
   padding: max(env(safe-area-inset-top, 0px), 16px) 16px 16px;
   overscroll-behavior: contain;
@@ -146,7 +171,7 @@ button, input { font: inherit; color: inherit; }
 }
 .sheet-x {
   flex: none; width: 36px; height: 36px; border-radius: 50%;
-  border: 1px solid var(--line); background: var(--surface-2);
+  border: 1px solid var(--line); background: var(--sunk);
   color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer;
 }
 .sheet-x:hover { border-color: var(--accent); color: var(--accent); }
@@ -185,25 +210,40 @@ button, input { font: inherit; color: inherit; }
    104px ate a third of the bar; scaling it keeps it instead. */
 .spark { flex: none; width: clamp(62px, 20vw, 104px); height: 38px; }
 
-/* --- step nav: the numbering is a real sequence --- */
-.steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 18px; }
+/* --- step nav: the numbering is a real sequence ---
+   One row. Every step stays one tap away, but only the step you are on
+   carries its name — six named buttons wrapped to two rows and cost 102px of
+   an 812px screen. The number alone is enough for the five you are not on,
+   because the name of the current one tells you where you are. */
+.steps { display: flex; gap: 5px; margin: 12px 0 16px; }
 .steps button {
-  flex: 1 1 0; min-width: 0;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-  padding: 8px 9px; cursor: pointer; text-align: left;
-  transition: border-color .15s, background .15s;
+  flex: none; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--sunk); border: 0; border-radius: 999px;
+  padding: 7px 11px; cursor: pointer; text-align: left;
+  transition: background .15s, color .15s;
 }
-.steps button:hover { border-color: var(--line-strong); }
-.steps button[aria-current="step"] { border-color: var(--accent); background: var(--accent-wash); }
-.steps .n { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); }
+.steps button:hover { background: var(--line); }
+.steps button[aria-current="step"] {
+  flex: 1 1 auto; background: var(--accent-wash); color: var(--accent);
+}
+.steps .n {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  color: var(--ink-3); font-variant-numeric: tabular-nums;
+}
 .steps button[aria-current="step"] .n { color: var(--accent); }
-.steps .t { font-size: 12px; font-weight: 600; line-height: 1.2; }
-@media (max-width: 560px) {
-  /* Three across, two rows. Hiding the names left five bare numbers that said
-     nothing about where you were or what came next. */
-  .steps button { flex: 1 1 28%; padding: 7px 8px; }
-  .steps .t { font-size: 11.5px; }
+.steps .t {
+  display: none;
+  font-size: 12.5px; font-weight: 700; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.steps button[aria-current="step"] .t { display: block; }
+/* Once there is room for all six names, show all six. Stretching one pill
+   across the row to carry the only name wastes the space rather than using
+   it — desktop is the same layout with more air, not a different one. */
+@media (min-width: 700px) {
+  .steps button { flex: 1 1 0; }
+  .steps .t { display: block; }
 }
 
 /* --- panels --- */
@@ -215,7 +255,7 @@ h2.h {
 }
 
 .card {
-  background: var(--surface); border: 1px solid var(--line);
+  background: var(--surface);
   border-radius: var(--r); padding: 18px 16px; margin-bottom: 14px;
 }
 .card > h3 {
@@ -234,9 +274,9 @@ h2.h {
 .info-btn {
   position: relative;
   width: 18px; height: 18px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--line-strong); background: var(--surface-2);
+  border: 1px solid var(--line-strong); background: var(--sunk);
   color: var(--ink-2); font-size: 10px; font-weight: 700; font-style: italic;
-  line-height: 1; cursor: pointer; font-family: Georgia, serif;
+  line-height: 1; cursor: pointer;
 }
 /* The dot stays small so it does not shout next to a 10px label, but the tap
    area is 26px square — WCAG 2.2 asks for at least 24. */
@@ -256,7 +296,7 @@ h2.h {
 .ctl-val { flex: none; }
 .ctl-val input[type=text] {
   width: 112px; text-align: right;
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk); border: 1px solid var(--line);
   border-radius: 8px; padding: 5px 8px;
   font-family: var(--display); font-size: 17px; font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -276,7 +316,7 @@ h2.h {
 .nudge {
   flex: none; width: 42px; height: 42px;
   display: grid; place-items: center;
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk); border: 1px solid var(--line);
   border-radius: 10px; color: var(--ink); cursor: pointer;
   font-size: 19px; line-height: 1; font-weight: 600;
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
@@ -305,10 +345,10 @@ h2.h {
 .ctl-row input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent-wash), 0 0 0 1px var(--accent); }
 
 .ctl-row input[type=range]::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line);
+  height: 6px; border-radius: 3px; background: var(--sunk); border: 1px solid var(--line);
 }
 .ctl-row input[type=range]::-moz-range-track {
-  height: 6px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line);
+  height: 6px; border-radius: 3px; background: var(--sunk); border: 1px solid var(--line);
 }
 .ctl-row input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
@@ -369,7 +409,7 @@ h2.h {
    contains a tooltip, and a scroll container would cut the popover off. */
 .ph-list { list-style: none; margin: 0 0 10px; padding: 0; }
 .ph-item {
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk); border: 1px solid var(--line);
   border-radius: 10px; margin-bottom: 8px;
 }
 .ph-item.is-open { border-color: var(--accent); background: var(--raise); }
@@ -406,7 +446,7 @@ h2.h {
 }
 .ph-field .nm {
   width: 100%; padding: 7px 9px; color: var(--ink);
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  background: var(--sunk); border: 1px solid var(--line); border-radius: 8px;
   font-size: 13px; font-weight: 600;
 }
 .ph-field .nm:focus { border-color: var(--accent); background: var(--raise); }
@@ -458,7 +498,7 @@ h2.h {
 .modes { display: flex; flex-direction: column; gap: 8px; }
 .modes button {
   display: block; width: 100%; text-align: left; cursor: pointer;
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk); border: 1px solid var(--line);
   border-radius: 10px; padding: 12px 14px;
 }
 .modes button:hover { border-color: var(--line-strong); }
@@ -475,7 +515,7 @@ h2.h {
 /* --- an option that drives another control --- */
 .linked {
   display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk); border: 1px solid var(--line);
   border-radius: 10px; padding: 12px 14px; margin-bottom: 18px;
 }
 .linked:hover { border-color: var(--line-strong); }
@@ -550,32 +590,76 @@ h2.h {
 
 .tbl-scroll { overflow-x: auto; margin: 0 -4px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+/* Headers wrap. Held on one line they set the column width — "Monthly income"
+   alone was 107px against a 62px figure — and the whole table then needed a
+   sideways drag to reach the last column. */
 th {
-  padding: 6px; text-align: right; white-space: nowrap;
+  padding: 6px 4px; text-align: right; white-space: normal; hyphens: none;
   border-bottom: 1px solid var(--line-strong);
-  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  font-size: 10px; font-weight: 700; letter-spacing: .05em; line-height: 1.25;
   text-transform: uppercase; color: var(--ink-3);
 }
 th:first-child { text-align: left; }
-td { padding: 7px 6px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+td { padding: 7px 4px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
 td:first-child { text-align: left; font-weight: 600; }
 td .main { font-weight: 600; }
 td .alt { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 400; color: var(--ink-3); }
 tr.key-row td { background: var(--accent-wash); }
 tr.tf-row td { background: var(--accent-wash); }
-/* The year the State Pension joins the income columns. */
-tr.sp-row td { box-shadow: inset 0 1px 0 var(--line-strong); }
 .rowmark {
   display: block; margin-top: 1px;
   font-size: 8.5px; font-weight: 700; letter-spacing: .04em;
   text-transform: uppercase; color: var(--accent); white-space: nowrap;
+}
+
+/* --- the phase, as an edge rather than a column ---
+   The rate repeated one of four values down thirty-four rows. As an edge it
+   costs no width at all, and the legend above names it once. */
+.edge td:first-child { position: relative; padding-left: 11px; }
+.edge td:first-child::before {
+  content: ""; position: absolute; left: 2px; top: 3px; bottom: 3px;
+  width: 3px; border-radius: 2px; background: var(--pc);
+}
+/* Rows before drawdown starts have no phase, so no edge is drawn. */
+.edge tr:not([style]) td:first-child::before { background: transparent; }
+
+.plegend { margin: 0 0 11px; }
+.plegend-h {
+  display: block; margin-bottom: 5px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.plegend-row { display: flex; gap: 5px 12px; flex-wrap: wrap; }
+.plegend-row > span {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* A bar, not a square — it is explaining an edge, so it looks like one. */
+.plegend-row i { width: 3px; height: 13px; border-radius: 2px; flex: none; }
+
+/* The State Pension starting is one event at one age, so it spans the table
+   instead of marking a cell. Neutral rather than --good: it is a change in
+   what the columns contain, not a verdict on it, and the semantic colours
+   stay out of a table that is already carrying four phase colours. */
+tr.sp-div td {
+  padding: 9px 6px 8px 11px; text-align: left; white-space: normal;
+  background: var(--sunk);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--ink);
+}
+tr.sp-div em {
+  font-style: normal; font-weight: 500; letter-spacing: .01em;
+  text-transform: none; color: var(--ink-2);
 }
 tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding-top: 10px; font-weight: 700; }
 .muted { color: var(--ink-3); }
 
 /* --- notes --- */
 .notes {
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--sunk);
   border-radius: var(--r); padding: 16px;
 }
 .notes h3 {
@@ -593,12 +677,25 @@ tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding
 /* --- footer nav --- */
 .fnav { display: flex; gap: 10px; margin-top: 18px; }
 .fnav button {
-  flex: 1; padding: 12px; border-radius: 10px;
+  flex: 1; padding: 13px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--surface);
-  font-size: 14px; font-weight: 600; cursor: pointer;
+  font-size: 14.5px; font-weight: 700; cursor: pointer;
 }
-.fnav button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.fnav button.primary { flex: 2; background: var(--accent); color: var(--on-phase); border-color: var(--accent); }
 .fnav button:disabled { opacity: .35; cursor: not-allowed; }
+/* On a phone the primary action is pinned, so moving between steps never
+   needs a scroll to the bottom first. On a wider screen there is no reason to
+   spend fixed furniture on it, so it stays in the flow. */
+@media (max-width: 699px) {
+  .fnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    margin: 0; gap: 8px;
+    padding: 9px 16px calc(9px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    box-shadow: 0 -1px 0 var(--line), 0 -10px 30px -18px rgba(0, 0, 0, .45);
+  }
+  .wrap { padding-bottom: 92px; }
+}
 .foot { margin-top: 22px; text-align: center; font-size: 11px; color: var(--ink-3); line-height: 1.6; }
 .foot a { color: var(--ink-2); }
 

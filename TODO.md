@@ -3,6 +3,144 @@
 Things worth doing that are not done, with enough context to act on them
 without the conversation they came from. Newest concerns first.
 
+## Growth should be three named scenarios, not one number
+
+Monzo's pension prediction does not draw an uncertainty band. It offers three
+named growth assumptions — Low (2%), Balanced (5%), High (8%) — as a radio list
+behind an Edit, and re-runs the whole prediction on the one you pick. Nutmeg,
+Plum and Wealthsimple all shade a cone instead.
+
+Named scenarios suit this app better than a cone. The model in
+`projection.js` is deterministic, so a band would have to be manufactured from
+three runs anyway, and the band hides the figures where the scenarios show
+them. It is also the cheaper build: growth is already an input, so this is a
+preset control and a label, not new maths.
+
+It fixes the real problem either way. One figure to the pound claims a
+precision the model does not have.
+
+## Fees are not modelled at all
+
+Monzo assumes 0.25% a year and says so plainly: "Your actual fees could vary
+and will affect the value of investments over time." This app has no fee input
+and no fee in the maths. A 0.25% drag compounded over thirty years is not a
+rounding error, and its absence makes every figure here optimistic against a
+real provider.
+
+`sustainableRate()` would need it too: net growth is what holds the pot level,
+so `r* = (g - f - i) / (1 + g - f)`.
+
+## There is no "work it out for me"
+
+The single best idea in Monzo's flow, and the answer to serving both the
+pension-naive and the financially literate on one screen. Its income sheet
+opens with a fork:
+
+- **Work it out for me** — "We'll estimate a yearly amount that could last
+  until you're 90"
+- **I'll choose an amount** — "Set an amount and see how long it lasts"
+
+Same model, two directions. This app only offers the second: you must set
+withdrawal rates before it will tell you anything. A novice has no basis for
+choosing 4% over 6%.
+
+The inverse solve is straightforward — the rate that leaves the pot at zero at
+`END_AGE` — and it makes the default path answer the question the user actually
+arrived with.
+
+## Key assumptions belongs on one screen, and replaces the glossary idea
+
+Monzo puts every assumption on a single sheet: name, current value, an Edit
+affordance where it is editable, and a paragraph saying what it is and what
+follows from it. Investment growth, inflation, contribution escalation, State
+Pension, expected yearly income, tax-free lump sum, tax relief, fees.
+
+Better than the glossary logged elsewhere here, because it is not a dictionary
+— it is the model's own parameters, explained. A reader who wants to know
+whether to trust the number has one place to go.
+
+Two of its entries are things this app should be saying and does not:
+
+- **Tax relief** — "We assume tax relief is already included in your
+  contributions." This app is silent, so a user may be entering gross or net
+  and has no way to know which is wanted.
+- **What is excluded** — "We haven't included the State pension in your total
+  predicted pot value." Naming the exclusion is as useful as naming the
+  inclusion.
+
+## A benchmark for what income to aim at
+
+Monzo shows "You might need 50% of your current income for a comfortable
+retirement lifestyle", backed by a table sourced to the DWP: up to £12,199
+needs 80%, £12,200-£22,399 needs 70%, £22,400-£31,999 needs 67%,
+£32,000-£51,299 needs 60%, £51,300 and above needs 50%.
+
+This app computes an income and never says whether it is enough. Offering the
+benchmark as context — not as a target, and with the source named — would let
+the number mean something. It needs a current salary input, which the app does
+not currently ask for.
+
+## Charts should carry four labels, not sixty-one
+
+Monzo's pot chart is one line with an area fade, an endpoint dot labelled
+£1.2M, a floor label of £235K, and two x anchors: 33 and 68, with "Age"
+beneath. Four labels for thirty-five years. Step 05 here is a sixty-one row
+ladder. Both are legitimate, but the ladder should earn its density rather
+than inherit it.
+
+Its income chart stacks private income and State Pension in one bar per age,
+with the scale on the right. When there is no private pension the bars are all
+State Pension and the chart still reads — it degrades without a special case.
+
+## Step 06 should stack the State Pension inside the income bar, not beside it
+
+Monzo's pension prediction puts private income and State Pension in one
+stacked bar per age, with a two-dot legend. This app keeps them in separate
+table columns and never adds them, which is already logged below as a missing
+total. Stacking solves both: the bar height is the total, and the split is
+visible without arithmetic.
+
+## The two structural choices should state their consequence on the control
+
+Monzo's screen has exactly two toggles, each carrying the figure it produces:
+"Take 25% lump sum — £126,383.05 (tax-free) at age 65 and the rest as income",
+"Include State Pension — Assuming it gives you £12,547.60 each year from age
+68". The control answers its own question, so nothing has to be read
+elsewhere. Step 03 and step 04 both have controls that currently do not.
+
+## The sustainable rate is a 2px tick and should be a named boundary
+
+Two patterns worth taking. Alma labels the recommended point on the slider
+track and shades the region around it, so the healthy range is a zone rather
+than a mark. Copilot explains its dashed line in one sentence the first time
+you see it: "This dotted line represents the ideal spending rate to help you
+stay within your monthly budgets." Credit Karma states the distance to the
+reference as a figure — "+72 pts to max score".
+
+Applied here: shade the rate slider at or below `sustainableRate()`, label the
+boundary, and state the gap in words — "2.7 points above the rate that holds
+the pot level". See `.claude/skills/design-language/SKILL.md` for the rule
+that the rate becomes a dashed line on the charts too.
+
+## Step 01's four sliders could be one editable sentence
+
+Stake's compound calculator reads "Projection of [$10,000] + [$1,000] every
+month earning [5.50%] p.a." with the values as inline editable pills. It puts
+the assumptions in a form a novice can read as prose and an expert can edit in
+place, which is the two-audience rule working for free. Worth prototyping
+against the current four-slider stack before committing.
+
+## Common values deserve presets, not only a slider drag
+
+Plum offers £100 / £200 / £500 / £1,000 as chips beside the slider. Dragging
+to a round number is the slowest way to reach the value most people want.
+
+## One glossary sheet, not a tooltip per term
+
+Zopa, Splitwise and Acorns all do the same thing: a single sheet, one heading
+per term, plain definition under each. Confirms the approach the design
+language already specifies, and gives a shape to copy.
+
 ## Repurpose the verdict chip
 
 The chip in the sticky header reads **"Lasts beyond 90"** and is always green.
@@ -21,12 +159,6 @@ It should describe the real-terms trajectory instead. Candidates:
   fault to warn about.
 
 `sustainableRate()` in `src/projection.js` already gives the comparison.
-
-## Step 06's table still needs a sideways drag on a phone
-
-Five columns come to 467px against a 317px scroller, so Age, Rate and Monthly
-income are visible and the annual breakdown is not. Better than the 662px it
-briefly reached, but a stacked card per year would suit a phone properly.
 
 ## Income tax is not modelled, and the State Pension makes that worse
 

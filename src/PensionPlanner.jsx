@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { Fragment, useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { project, phaseSpans, incomeStartAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
   TAX_FREE_CAP, ANNUAL_ALLOWANCE, STATE_PENSION_ANNUAL, END_AGE } from "./projection.js";
 
@@ -702,11 +702,26 @@ export default function PensionPlanner() {
     return [...ages].filter((a) => a >= s.currentAge && a <= END_AGE).sort((a, b) => a - b);
   }, [s.currentAge, start]);
 
+  /* The bar carries the answer, so it cannot go away — but at 157px it was a
+     fifth of a phone screen. Past the threshold it drops to one row: the
+     verdict, the headline figure, and the basis toggle. 40px of hysteresis
+     stops it flickering when a tap lands mid-boundary. */
+  const [condensed, setCondensed] = useState(false);
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      setCondensed((was) => (was ? y > 40 : y > 80));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <>
       {helpOpen && <HowItWorks onClose={() => setHelpOpen(false)} />}
 
-      <div className="verdict">
+      <div className={`verdict${condensed ? " is-condensed" : ""}`}>
         <div className="verdict-in">
           <div className="verdict-top">
             <span className={`chip ${chipClass}`}>
@@ -716,6 +731,12 @@ export default function PensionPlanner() {
             <button type="button" className="hiw-btn" onClick={() => setHelpOpen(true)}>
               <span aria-hidden="true">i</span> How it works
             </button>
+            {/* Only drawn once the bar has collapsed, so the headline figure
+                never leaves the screen even when the tiles below it do. */}
+            <span className="vnow" aria-hidden={!condensed}>
+              {firstIncome ? full(showToday ? firstIncome.monthlyToday : firstIncome.monthly) : "—"}
+              <i>a month</i>
+            </span>
             <div className="basis" role="group" aria-label="Measure amounts in">
               <button
                 type="button" aria-pressed={!showToday}
@@ -758,7 +779,12 @@ export default function PensionPlanner() {
       <div className="wrap">
         <nav className="steps" aria-label="Planning steps">
           {STEPS.map((st, i) => (
-            <button key={st.n} type="button" aria-current={i === step ? "step" : undefined} onClick={() => go(i)}>
+            <button
+              key={st.n} type="button"
+              aria-current={i === step ? "step" : undefined}
+              aria-label={`Step ${st.n}, ${st.t}`}
+              onClick={() => go(i)}
+            >
               <span className="n">{st.n}</span>
               <span className="t">{st.t}</span>
             </button>
@@ -1341,15 +1367,31 @@ export default function PensionPlanner() {
                   </Info>
                 </span>
               </div>
+              {/* The rate had a column of its own, which repeated one of four
+                  values down thirty-four rows and cost 38px the table did not
+                  have. It is a property of the phase, so the phase carries it:
+                  a coloured edge on each row, named once here. The heading
+                  says what both values are — "01 · 6%" alone never said 6% of
+                  what, over what. */}
+              <div className="plegend">
+                <span className="plegend-h">Phase &middot; annual drawdown rate</span>
+                <span className="plegend-row">
+                  {spans.map((sp, i) => (
+                    <span key={i}>
+                      <i style={{ background: phaseVar(i) }} />
+                      {String(i + 1).padStart(2, "0")} &middot; {sp.rate}%
+                    </span>
+                  ))}
+                </span>
+              </div>
               <div className="tbl-scroll">
-                <table>
+                <table className="edge">
                   <thead>
                     <tr>
-                      {/* What you live on comes first — the monthly figure and the
-                          rate behind it — because that is what a phone shows
-                          without scrolling. The annual breakdown follows. */}
+                      {/* What you live on comes first — the monthly figure —
+                          because that is what a phone shows without scrolling.
+                          The annual breakdown follows. */}
                       <th>Age</th>
-                      <th>Rate</th>
                       <th>Monthly income</th>
                       <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}</th>
                       <th>{s.taxFreeMode === "lump" ? "Annual income" : "Taxable part"}</th>
@@ -1357,26 +1399,31 @@ export default function PensionPlanner() {
                   </thead>
                   <tbody>
                     {incomeRows.length === 0 && (
-                      <tr><td colSpan={5} className="muted">No payments yet — set a drawdown age on step 04.</td></tr>
+                      <tr><td colSpan={4} className="muted">No payments yet — set a drawdown age on step 04.</td></tr>
                     )}
                     {incomeRows.map((r) => {
                       const col = r.phaseIndex >= 0 ? phaseVar(r.phaseIndex) : undefined;
                       return (
+                        <Fragment key={r.age}>
+                          {/* Income jumps the year the State Pension starts, and folded
+                              into the columns that step has no explanation. The edge
+                              cannot carry it — an edge repeats on every row and this
+                              happens once — so it gets a row of its own, spanning the
+                              table because it is an event rather than a value. Neutral,
+                              not the good colour: it is a change, not a verdict. */}
+                          {spStarts === r.age && (
+                            <tr className="sp-div">
+                              <td colSpan={4}>
+                                State Pension starts at {r.age}
+                                <em> — {full(STATE_PENSION_ANNUAL)} a year, counted in the columns below</em>
+                              </td>
+                            </tr>
+                          )}
                         <tr
-                          key={r.age}
-                          className={[r.taxFree > 0 ? "tf-row" : "", spStarts === r.age ? "sp-row" : ""]
-                            .filter(Boolean).join(" ") || undefined}
+                          className={r.taxFree > 0 ? "tf-row" : undefined}
+                          style={col ? { "--pc": col } : undefined}
                         >
-                          <td>
-                            {r.age}
-                            {/* Income jumps the year the State Pension starts. Folded
-                                into the columns it would be an unexplained step, so
-                                the one row that causes it says so. */}
-                            {spStarts === r.age && <span className="rowmark">+ State Pension</span>}
-                          </td>
-                          <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
-                            {r.rate > 0 ? `${r.rate}%` : "—"}
-                          </td>
+                          <td>{r.age}</td>
                           <td>{r.incomeMonthly > 0
                             ? <Cell cash={r.incomeMonthly} today={r.incomeMonthlyToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
@@ -1387,12 +1434,13 @@ export default function PensionPlanner() {
                             ? <Cell cash={r.incomeAnnual} today={r.incomeAnnualToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
                         </tr>
+                        </Fragment>
                       );
                     })}
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={2}>Total</td>
+                      <td>Total</td>
                       <td className="muted" style={{ fontWeight: 400 }}>over {incomeRows.length} years</td>
                       <td><Cell cash={totals.tfCash} today={totals.tfToday} showToday={showToday} /></td>
                       <td><Cell cash={totals.incCash} today={totals.incToday} showToday={showToday} /></td>
