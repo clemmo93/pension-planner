@@ -270,29 +270,6 @@ h2.h {
 .ctl-head { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
 .ctl-head label { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
 
-.info { position: relative; display: inline-block; margin-left: 5px; vertical-align: middle; }
-.info-btn {
-  position: relative;
-  width: 18px; height: 18px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--line-strong); background: var(--sunk);
-  color: var(--ink-2); font-size: 10px; font-weight: 700; font-style: italic;
-  line-height: 1; cursor: pointer;
-}
-/* The dot stays small so it does not shout next to a 10px label, but the tap
-   area is 26px square — WCAG 2.2 asks for at least 24. */
-.info-btn::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
-.info-btn:hover, .info-btn[aria-expanded="true"] {
-  border-color: var(--accent); color: var(--accent);
-}
-.info-pop {
-  position: fixed; z-index: 60; top: 0; left: 0;
-  width: max-content; max-width: min(280px, calc(100vw - 24px));
-  background: var(--raise); border: 1px solid var(--line-strong);
-  border-radius: 10px; padding: 11px 13px; box-shadow: var(--shadow);
-  font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--ink-2);
-  white-space: normal; text-transform: none; letter-spacing: 0;
-}
-.info-pop b { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 600; }
 .ctl-val { flex: none; }
 .ctl-val input[type=text] {
   width: 112px; text-align: right;
@@ -524,14 +501,34 @@ h2.h {
 .linked span { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
 .linked b { display: block; margin-bottom: 2px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .linked:has(input:checked) b { color: var(--accent); }
-/* Header help sits above the table, not in the <th>: .tbl-scroll scrolls on x,
-   which clips on y too, so a popover anchored in a header cell is cut off. */
-.tkey {
-  display: flex; gap: 6px 16px; flex-wrap: wrap; align-items: center;
-  margin: 0 0 10px; font-size: 10px; font-weight: 700;
-  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+/* One trigger in place of a dot per term. Sits where the column-help row was,
+   above the table it explains. */
+.termsbtn {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin: 0 0 11px; padding: 7px 12px 7px 9px;
+  background: var(--sunk); border: 0; border-radius: 999px;
+  color: var(--ink-2); font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: background .15s, color .15s;
 }
-.tkey > span { display: inline-flex; align-items: center; }
+.termsbtn:hover { background: var(--accent-wash); color: var(--accent); }
+.termsbtn > span {
+  width: 17px; height: 17px; flex: none; display: grid; place-items: center;
+  border: 1px solid currentColor; border-radius: 50%;
+  font-style: italic; font-size: 10px; font-weight: 700; line-height: 1;
+}
+
+/* Term, then what follows from it — the shape every glossary worth copying
+   uses. One card per term so a long definition cannot run into the next. */
+.terms { margin: 0; padding: 0; display: grid; gap: 10px; }
+.terms > div { background: var(--sunk); border-radius: var(--r-tile); padding: 13px 15px 14px; }
+.terms dt {
+  margin: 0 0 5px;
+  font-size: 13.5px; font-weight: 700; color: var(--ink); letter-spacing: -.005em;
+}
+.terms dd {
+  margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-2);
+}
+
 /* Present to assistive tech, absent from the layout. */
 .vh {
   position: absolute; width: 1px; height: 1px; overflow: hidden;

@@ -63,14 +63,18 @@ present-day amount, where the deflator is 1.
 money lands. Otherwise the first payment appears a year late and £10,000 paid
 today shows as £9,756 in today's money.
 
-**`.tbl-scroll` is `overflow-x: auto`, which clips on y too.** A popover
-anchored inside a table header is cut off. Column help goes in a `.tkey` row
-above the table.
+**`.tbl-scroll` is `overflow-x: auto`, which clips on y too.** Nothing
+anchored inside it can escape it, so anything that has to overlay the table
+belongs outside the scroller.
 
-**`.info-pop` is `position: fixed`, measured on open.** In flow it added
-scrollable overflow, and under mobile emulation that widens the layout viewport
-— so clamping against `window.innerWidth` chases a number the popover has
-already moved. It also flips above its button when there is no room below.
+**Explanations live in one sheet per step, not a popover per term.** Every
+step has a single `What these terms mean` button under its lede, always in
+the same place, opening the `Terms` sheet with that step's list. The
+`.info-pop` it replaced was `position: fixed` and measured itself on open,
+which caused two separate layout bugs — in flow it added scrollable overflow,
+and under mobile emulation that widened the layout viewport, so clamping
+against `window.innerWidth` chased a number the popover had already moved.
+Do not reintroduce a measured-on-open popover.
 
 **Steppers accumulate against a shadow ref**, not the rendered prop. React
 batches, so several taps in one frame would otherwise read the same stale value
