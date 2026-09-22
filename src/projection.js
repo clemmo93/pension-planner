@@ -2,6 +2,12 @@
 // on its own. Every figure the UI shows comes from here.
 
 export const TAX_FREE_CAP = 268275;
+/* A quarter of whatever you crystallise. Not a choice: taking less than this
+   from a crystallisation forfeits the difference — the rest of that slice is
+   taxable in full — so the decision people actually make is how much to
+   crystallise, not what share of it to take. UFPLS is fixed at this rate by
+   law and cannot be varied at all. */
+export const TAX_FREE_RATE = 0.25;
 // Full new State Pension, 2026/27. Held as the weekly figure because that is
 // how it is legislated and uprated; the annual figure is derived.
 export const STATE_PENSION_WEEKLY = 241.30;
@@ -111,6 +117,7 @@ export function project(s) {
   let contributedTotal = 0;
   let contributedTotalToday = 0;
   let taxFreeTotal = 0;
+  let taxFreeTotalToday = 0;
   let taxFreeTaken = 0;
 
   for (let age = s.currentAge; age <= END_AGE; age++) {
@@ -154,8 +161,17 @@ export function project(s) {
     // while you phase. The lump sum allowance is a lifetime ceiling, so once it
     // is used up there is nothing to gain by crystallising further.
     let taxFreeThisYear = 0;
-    const pct = s.taxFreePct / 100;
-    const lsaLeft = TAX_FREE_CAP - taxFreeTotal;
+    const pct = TAX_FREE_RATE;
+    /* The allowance is a single lifetime figure, so how much is left depends on
+       whether it holds its value. Frozen in cash, it withers: £268,275 is worth
+       a fraction of that by the time most people reach it. Uprated, the ceiling
+       is a real quantity, so what has been used has to be counted in today's
+       money too — nominal sums from different years cannot be added against a
+       real cap. */
+    const lsaLeftNow = () => (s.taxFreeCapUprated
+      ? Math.max(0, (TAX_FREE_CAP - taxFreeTotalToday) * deflator)
+      : Math.max(0, TAX_FREE_CAP - taxFreeTotal));
+    const lsaLeft = lsaLeftNow();
     const inTaxFreeWindow = !ufpls && age >= s.taxFreeTakeAge && age < s.taxFreeTakeAge + s.taxFreeYears;
     if (inTaxFreeWindow && taxFreeTaken < s.taxFreeYears && pct > 0 && lsaLeft > 0.01 && uncrystallised > 0) {
       const yearsLeft = s.taxFreeYears - taxFreeTaken;
@@ -177,6 +193,7 @@ export function project(s) {
       crystallised += slice - cash;
       taxFreeThisYear = cash;
       taxFreeTotal += cash;
+      taxFreeTotalToday += cash / deflator;
       taxFreeTaken++;
     }
 
@@ -191,9 +208,10 @@ export function project(s) {
       if (ufpls) {
         // Every payment is part tax free, part taxable, until the lifetime
         // allowance for tax-free cash runs out. Nothing is set aside up front.
-        const freeNow = Math.min(drawn * pct, TAX_FREE_CAP - taxFreeTotal);
+        const freeNow = Math.min(drawn * pct, lsaLeftNow());
         taxFreeThisYear = Math.max(freeNow, 0);
         taxFreeTotal += taxFreeThisYear;
+        taxFreeTotalToday += taxFreeThisYear / deflator;
         taxable = drawn - taxFreeThisYear;
       } else {
         taxable = drawn;
@@ -283,6 +301,7 @@ export function project(s) {
     years,
     contributions,
     taxFreeTotal,
+    taxFreeTotalToday,
     taxFreePayments,
     contributedTotal,
     contributedTotalToday,

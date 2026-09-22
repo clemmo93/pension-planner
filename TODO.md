@@ -3,6 +3,35 @@
 Things worth doing that are not done, with enough context to act on them
 without the conversation they came from. Newest concerns first.
 
+## Crystallisation cannot be scheduled tranche by tranche
+
+Step 03 offers "spread over N years", which produces even tranches all
+starting at one age. The rules allow far more: each crystallisation is a
+discrete decision, of any size, at any time, with any gap. £250,000 then
+£200,000 then £150,000 is perfectly ordinary and cannot be expressed here.
+
+It matters because it is the only way to move the tax-free figure toward the
+cap. On the defaults, with the allowance uprating, a quarter of the pot at 57
+is £173,633 in today's money against a £268,275 ceiling — the pot binds, not
+the cap, and you would need £1,073,100 in today's money at the moment you
+crystallise for the cap to bite. Spreading helps, because whatever is left
+uncrystallised keeps growing and its own quarter grows with it, but only so
+far:
+
+| Spread over | Tax-free cash, today's £ | Of the cap |
+|---|---|---|
+| 1 year | £173,633 | 65% |
+| 4 years | £182,731 | 68% |
+| 8 years | £195,864 | 73% |
+| 12 years | £210,255 | 78% |
+
+What closes the gap is crystallising a little early and the rest much later,
+once it has grown — and that is exactly what the current control cannot say.
+
+A list of tranches, each with an amount and an age, would reuse step 04's
+phase-row pattern. `projection.js` derives everything from `taxFreeYears` and
+a rate, so it would need to take a schedule instead.
+
 ## Growth should be three named scenarios, not one number
 
 Monzo's pension prediction does not draw an uncertainty band. It offers three

@@ -109,8 +109,11 @@ have actually broken here are the things worth re-checking:
   off-screen too.
 - **Ladder rows are all one height.** Age is the vertical axis, so a taller row
   is a longer year.
-- **The projection's defaults** after any maths change: £1.35m at 57, £2,784 a
-  month, lasts beyond 90.
+- **The projection's defaults** after any maths change: £1.35m at 57, £2,604 a
+  month in today's £, lasts beyond 90. It was £2,784 until the lump sum
+  allowance began uprating with inflation by default — the cap stops binding,
+  so more comes out as tax-free cash at 57 and less is left in the pot to pay
+  income. Turning `taxFreeCapUprated` off restores £2,784.
 - **The deployed bundle hash matches `dist/`** after every release.
 
 React synthetic events are a recurring source of false results: `mouseleave`

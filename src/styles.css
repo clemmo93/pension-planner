@@ -886,3 +886,42 @@ tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding
 
 /* Years with tax-free cash but no drawdown yet have no phase and no rate. */
 .icv-span.is-pre em { color: var(--ink-3); }
+
+/* --- assumptions ---
+   Two triggers, same treatment, same place on every step: what the words mean,
+   and what the numbers rest on. */
+.helprow { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 11px; }
+.helprow .termsbtn { margin: 0; }
+
+.terms.asm dt {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.terms.asm dt span {
+  flex: none; font-size: 12px; font-weight: 700; color: var(--accent);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.asm-choice { display: grid; gap: 7px; margin-top: 11px; }
+.asm-choice button {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px;
+}
+.asm-choice button:hover { border-color: var(--line-strong); }
+.asm-choice button[aria-pressed="true"] {
+  border-color: var(--accent); background: var(--accent-wash);
+}
+.asm-choice b {
+  display: block; margin-bottom: 2px;
+  font-size: 13px; font-weight: 700; color: var(--ink);
+}
+.asm-choice button[aria-pressed="true"] b { color: var(--accent); }
+.asm-choice span { display: block; font-size: 11.5px; color: var(--ink-2); line-height: 1.45; }
+
+/* A Control inside the assumptions sheet sits on --sunk rather than in a card,
+   so its groove and typed field need the tone above it to stay distinct. */
+.terms.asm .ctl { margin: 12px 0 0; }
+.terms.asm .ctl-head label { font-size: 12px; }
+.terms.asm .nudge,
+.terms.asm .ctl-val input[type=text] { background: var(--surface); }
+.terms.asm .ctl-row input[type=range]::-webkit-slider-runnable-track { background: var(--surface); }
+.terms.asm .ctl-row input[type=range]::-moz-range-track { background: var(--surface); }

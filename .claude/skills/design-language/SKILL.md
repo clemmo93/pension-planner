@@ -231,6 +231,15 @@ Prefer this wherever a control requires knowledge the novice does not have.
   that step's list: term in bold, then what follows from it, one card each.
   The six popovers it replaced on step 06 each closed the last, so six
   sentences took six taps and could never be read side by side.
+- **A second sheet holds the assumptions**, reached from the same row as the
+  terms button on every step. Terms are per-step and explain words;
+  assumptions are global and explain numbers. Each entry states its value on
+  the right, and where a value has a control elsewhere the sheet carries that
+  same `Control` rather than a second implementation — the steppers accumulate
+  against a shadow ref, and a simpler copy drops taps made in one frame.
+- **An assumption with no other home is editable in the sheet.** Whether the
+  lump sum allowance uprates with inflation lives nowhere else, so it is a
+  choice there rather than a sentence.
 - Term copy is built from live state, never written once and left. Monzo's own
   assumptions screen reads "8%" above a paragraph beginning "We assume a
   balanced growth rate of 5%".
