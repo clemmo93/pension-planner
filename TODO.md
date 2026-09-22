@@ -22,12 +22,11 @@ It should describe the real-terms trajectory instead. Candidates:
 
 `sustainableRate()` in `src/projection.js` already gives the comparison.
 
-## Step 06's table has outgrown a phone
+## Step 06's table still needs a sideways drag on a phone
 
-Seven columns come to 662px against a 317px scroller. "Total received" was
-moved next to Age so the summary is visible without scrolling, but the
-breakdown still needs a sideways drag. A stacked card per year, or a column
-picker, would suit a phone better than a wide table.
+Five columns come to 467px against a 317px scroller, so Age, Rate and Monthly
+income are visible and the annual breakdown is not. Better than the 662px it
+briefly reached, but a stacked card per year would suit a phone properly.
 
 ## Income tax is not modelled, and the State Pension makes that worse
 

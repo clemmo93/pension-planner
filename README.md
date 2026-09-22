@@ -20,7 +20,7 @@ while you adjust anything.
 | 03 | **Tax-free cash** | The tax-free share, when to take it, and whether as a lump sum or a slice of every payment |
 | 04 | **Drawdown** | When income starts, the State Pension, and up to four withdrawal phases |
 | 05 | **Pot value** | Every year from now to 90, as a vertical ladder of bars |
-| 06 | **Income** | Every payment received: drawdown, tax-free cash and the State Pension |
+| 06 | **Income** | Every payment received, with the State Pension counted inside the income columns |
 
 ## Future £ and today's £
 

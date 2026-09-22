@@ -684,11 +684,13 @@ export default function PensionPlanner() {
   // earns a row once the State Pension is switched on.
   const incomeRows = P.years.filter((y) => y.annual > 0 || y.taxFree > 0 || y.statePension > 0);
   const totals = incomeRows.reduce((a, r) => ({
-    cash: a.cash + r.annual, today: a.today + r.annualToday,
     tfCash: a.tfCash + r.taxFree, tfToday: a.tfToday + r.taxFreeToday,
-    spCash: a.spCash + r.statePension, spToday: a.spToday + r.statePensionToday,
-    rxCash: a.rxCash + r.received, rxToday: a.rxToday + r.receivedToday,
-  }), { cash: 0, today: 0, tfCash: 0, tfToday: 0, spCash: 0, spToday: 0, rxCash: 0, rxToday: 0 });
+    incCash: a.incCash + r.incomeAnnual, incToday: a.incToday + r.incomeAnnualToday,
+  }), { tfCash: 0, tfToday: 0, incCash: 0, incToday: 0 });
+
+  // The single year the income columns step up, when there is one to flag.
+  const spStarts = s.statePension && P.years.some((y) => y.age === spAge && y.incomeAnnual > 0)
+    ? spAge : null;
 
   // Step 03's tiles were the only money figures ignoring the basis toggle.
   const taxFreeTotalToday = P.taxFreePayments.reduce((a, y) => a + y.taxFreeToday, 0);
@@ -1267,8 +1269,10 @@ export default function PensionPlanner() {
                     any tax, so what you keep is lower.
                   </Info>
                 </span>
-                <span className="v">{money(showToday ? totals.today : totals.cash)}</span>
-                <span className="s">taxed at your marginal rate</span>
+                <span className="v">{money(showToday ? totals.incToday : totals.incCash)}</span>
+                <span className="s">
+                  {s.statePension ? "drawdown and State Pension, before tax" : "taxed at your marginal rate"}
+                </span>
               </span>
               <span className="e">
                 <span className="k">
@@ -1295,30 +1299,10 @@ export default function PensionPlanner() {
                 {s.taxFreeMode === "lump"
                   ? "Tax-free cash is a separate payment; the income column is taxable in full."
                   : `Each payment splits ${s.taxFreePct}/${100 - s.taxFreePct} between tax free and taxable, until the lifetime cap runs out.`}
+                {s.statePension && ` The State Pension is counted in both income columns from ${spAge}.`}
                 {" "}{basisCaption(showToday)}
               </p>
               <div className="tkey">
-                {s.statePension && (
-                  <>
-                    <span>
-                      Total received
-                      <Info title="Total received">
-                        Everything paid to you that year: drawdown, any tax-free cash, and the State
-                        Pension. The year you take a lump sum is much larger than the rest — that is
-                        the lump sum, not income you get every year.
-                      </Info>
-                    </span>
-                    <span>
-                      State Pension
-                      <Info title="State Pension">
-                        {full(STATE_PENSION_ANNUAL)} a year at the full rate, from {spAge}. It is
-                        separate from your pot and does not come out of it. Held level in
-                        today&rsquo;s money here, because the triple lock raises it by at least
-                        inflation.
-                      </Info>
-                    </span>
-                  </>
-                )}
                 <span>
                   {lumpMode ? "Tax-free cash" : "Tax-free part"}
                   <Info title={lumpMode ? "Tax-free cash" : "Tax-free part"}>
@@ -1331,16 +1315,22 @@ export default function PensionPlanner() {
                   {lumpMode ? "Annual income" : "Taxable part"}
                   <Info title={lumpMode ? "Annual income" : "Taxable part"}>
                     {lumpMode
-                      ? "Drawdown only. It does not include the tax-free cash or the State Pension shown in the same row. Taxable in full."
-                      : "The rest of each payment. Taxed as income at your marginal rate."}
+                      ? "What you draw from the pot that year"
+                      : "The taxable share of each payment"}
+                    {s.statePension
+                      ? <>, plus the State Pension once it starts at {spAge} — which is why the figure
+                        steps up that year. Taxable in full. It does not include the tax-free cash in
+                        the same row.</>
+                      : <>. Taxable in full. It does not include the tax-free cash in the same row.</>}
                   </Info>
                 </span>
                 <span>
-                  Monthly drawdown
-                  <Info title="Monthly drawdown">
-                    {lumpMode
-                      ? "The annual drawdown divided by twelve. Blank in years you take tax-free cash and no income."
-                      : "The whole payment divided by twelve, tax-free part included — so it is more than the taxable column divided by twelve."}
+                  Monthly income
+                  <Info title="Monthly income">
+                    The year&rsquo;s income divided by twelve
+                    {s.statePension && <>, State Pension included from {spAge}</>}. A one-off
+                    tax-free lump sum is left out — it has its own column, and spreading it over
+                    twelve months would suggest an income you do not get every year.
                   </Info>
                 </span>
                 <span>
@@ -1355,65 +1345,57 @@ export default function PensionPlanner() {
                 <table>
                   <thead>
                     <tr>
-                      {/* Summary first, breakdown after. Seven columns cannot fit a
-                          phone, so the column you most want — what you actually
-                          received — leads, and the parts that make it up follow. */}
+                      {/* What you live on comes first — the monthly figure and the
+                          rate behind it — because that is what a phone shows
+                          without scrolling. The annual breakdown follows. */}
                       <th>Age</th>
-                      {s.statePension && <th>Total received</th>}
+                      <th>Rate</th>
+                      <th>Monthly income</th>
                       <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}</th>
                       <th>{s.taxFreeMode === "lump" ? "Annual income" : "Taxable part"}</th>
-                      {s.statePension && <th>State Pension</th>}
-                      <th>Monthly drawdown</th>
-                      <th>Rate</th>
                     </tr>
                   </thead>
                   <tbody>
                     {incomeRows.length === 0 && (
-                      <tr><td colSpan={s.statePension ? 7 : 5} className="muted">No payments yet — set a drawdown age on step 04.</td></tr>
+                      <tr><td colSpan={5} className="muted">No payments yet — set a drawdown age on step 04.</td></tr>
                     )}
                     {incomeRows.map((r) => {
                       const col = r.phaseIndex >= 0 ? phaseVar(r.phaseIndex) : undefined;
                       return (
-                        <tr key={r.age} className={r.taxFree > 0 ? "tf-row" : undefined}>
-                          <td>{r.age}</td>
-                          {s.statePension && (
-                            <td>{r.received > 0
-                              ? <Cell cash={r.received} today={r.receivedToday} showToday={showToday} fmt={full} />
-                              : <span className="muted">—</span>}</td>
-                          )}
-                          <td>{r.taxFree > 0
-                            ? <Cell cash={r.taxFree} today={r.taxFreeToday} showToday={showToday} fmt={full} />
-                            : <span className="muted">—</span>}</td>
-                          <td>{r.annual > 0
-                            ? <Cell cash={r.annual} today={r.annualToday} showToday={showToday} fmt={full} />
-                            : <span className="muted">—</span>}</td>
-                          {s.statePension && (
-                            <td>{r.statePension > 0
-                              ? <Cell cash={r.statePension} today={r.statePensionToday} showToday={showToday} fmt={full} />
-                              : <span className="muted">—</span>}</td>
-                          )}
-                          <td>{r.withdrawal > 0
-                            ? <Cell cash={r.monthly} today={r.monthlyToday} showToday={showToday} fmt={full} />
-                            : <span className="muted">—</span>}</td>
+                        <tr
+                          key={r.age}
+                          className={[r.taxFree > 0 ? "tf-row" : "", spStarts === r.age ? "sp-row" : ""]
+                            .filter(Boolean).join(" ") || undefined}
+                        >
+                          <td>
+                            {r.age}
+                            {/* Income jumps the year the State Pension starts. Folded
+                                into the columns it would be an unexplained step, so
+                                the one row that causes it says so. */}
+                            {spStarts === r.age && <span className="rowmark">+ State Pension</span>}
+                          </td>
                           <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
                             {r.rate > 0 ? `${r.rate}%` : "—"}
                           </td>
+                          <td>{r.incomeMonthly > 0
+                            ? <Cell cash={r.incomeMonthly} today={r.incomeMonthlyToday} showToday={showToday} fmt={full} />
+                            : <span className="muted">—</span>}</td>
+                          <td>{r.taxFree > 0
+                            ? <Cell cash={r.taxFree} today={r.taxFreeToday} showToday={showToday} fmt={full} />
+                            : <span className="muted">—</span>}</td>
+                          <td>{r.incomeAnnual > 0
+                            ? <Cell cash={r.incomeAnnual} today={r.incomeAnnualToday} showToday={showToday} fmt={full} />
+                            : <span className="muted">—</span>}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td>Total</td>
-                      {s.statePension && (
-                        <td><Cell cash={totals.rxCash} today={totals.rxToday} showToday={showToday} /></td>
-                      )}
+                      <td colSpan={2}>Total</td>
+                      <td className="muted" style={{ fontWeight: 400 }}>over {incomeRows.length} years</td>
                       <td><Cell cash={totals.tfCash} today={totals.tfToday} showToday={showToday} /></td>
-                      <td><Cell cash={totals.cash} today={totals.today} showToday={showToday} /></td>
-                      {s.statePension && (
-                        <td><Cell cash={totals.spCash} today={totals.spToday} showToday={showToday} /></td>
-                      )}
-                      <td className="muted" style={{ fontWeight: 400 }} colSpan={2}>over {incomeRows.length} years</td>
+                      <td><Cell cash={totals.incCash} today={totals.incToday} showToday={showToday} /></td>
                     </tr>
                   </tfoot>
                 </table>

@@ -207,10 +207,12 @@ export function project(s) {
 
     const spToday = spOn && age >= spStart ? STATE_PENSION_ANNUAL : 0;
     const spCash = spToday * deflator;
-    // Everything actually paid to you this year. Under a lump sum the tax-free
-    // cash is a separate payment on top of the drawdown; under UFPLS it is
-    // already inside it, so adding it again would double count.
-    const receivedToday = drawn / deflator + (ufpls ? 0 : taxFreeThisYear / deflator) + spToday;
+    // Income means all of it. `annual` is the taxable drawdown and `withdrawal`
+    // everything the drawdown takes out; the State Pension is taxable too and
+    // arrives every month, so it belongs in both. A one-off tax-free lump sum
+    // does not — it has its own column and would swamp a monthly figure.
+    const incomeAnnual = taxable + spCash;
+    const incomeMonthly = (drawn + spCash) / 12;
 
     years.push({
       age,
@@ -234,8 +236,10 @@ export function project(s) {
       taxFreeToday: taxFreeThisYear / deflator,
       statePension: spCash,
       statePensionToday: spToday,
-      received: receivedToday * deflator,
-      receivedToday,
+      incomeAnnual,
+      incomeAnnualToday: incomeAnnual / deflator,
+      incomeMonthly,
+      incomeMonthlyToday: incomeMonthly / deflator,
       uncrystallised: Math.max(uncrystallised, 0),
       crystallised: Math.max(crystallised, 0),
       paidIn: contributedTotal,
@@ -256,9 +260,12 @@ export function project(s) {
           statePension: (spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0)
             * Math.pow(1 + s.inflation / 100, a - s.currentAge),
           statePensionToday: spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0,
-          received: (spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0)
+          incomeAnnual: (spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0)
             * Math.pow(1 + s.inflation / 100, a - s.currentAge),
-          receivedToday: spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0,
+          incomeAnnualToday: spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0,
+          incomeMonthly: (spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0)
+            * Math.pow(1 + s.inflation / 100, a - s.currentAge) / 12,
+          incomeMonthlyToday: spOn && a >= spStart ? STATE_PENSION_ANNUAL / 12 : 0,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
         });
       }

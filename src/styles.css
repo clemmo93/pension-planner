@@ -563,6 +563,13 @@ td .main { font-weight: 600; }
 td .alt { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 400; color: var(--ink-3); }
 tr.key-row td { background: var(--accent-wash); }
 tr.tf-row td { background: var(--accent-wash); }
+/* The year the State Pension joins the income columns. */
+tr.sp-row td { box-shadow: inset 0 1px 0 var(--line-strong); }
+.rowmark {
+  display: block; margin-top: 1px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--accent); white-space: nowrap;
+}
 tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding-top: 10px; font-weight: 700; }
 .muted { color: var(--ink-3); }
 
