@@ -208,9 +208,15 @@ Prefer this wherever a control requires knowledge the novice does not have.
   novice never opens it and still gets a real answer; the expert opens it once
   and it stays open.
 - One glossary, linked from every technical term. Not a tooltip per occurrence.
-- A figure always has a plain sentence available on demand and never shows one
-  unasked. `.info-pop` is the mechanism; it needs applying consistently rather
-  than where it happened to get added.
+- **One sheet per step, not a popover per term.** Every step carries a single
+  `What these terms mean` button directly under its lede — always the same
+  place, which is what makes the rule work. It opens the `Terms` sheet with
+  that step's list: term in bold, then what follows from it, one card each.
+  The six popovers it replaced on step 06 each closed the last, so six
+  sentences took six taps and could never be read side by side.
+- Term copy is built from live state, never written once and left. Monzo's own
+  assumptions screen reads "8%" above a paragraph beginning "We assume a
+  balanced growth rate of 5%".
 
 ## Verifying
 

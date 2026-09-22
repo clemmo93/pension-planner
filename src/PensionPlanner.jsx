@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { Fragment, useState, useMemo, useRef, useEffect } from "react";
 import { project, phaseSpans, incomeStartAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
   TAX_FREE_CAP, ANNUAL_ALLOWANCE, STATE_PENSION_ANNUAL, END_AGE } from "./projection.js";
 
@@ -86,78 +86,6 @@ const STEPS = [
   { n: "06", t: "Income" },
 ];
 
-/* --------------------------------------------------------- contextual help */
-
-/**
- * A tap-to-open explainer beside a label. Tap rather than hover: a hover-only
- * tooltip is unreachable on a phone, which is where most of these get read.
- */
-function Info({ title, children }) {
-  const [open, setOpen] = useState(false);
-  const [at, setAt] = useState(null);
-  const wrap = useRef(null);
-  const pop = useRef(null);
-
-  // Placed with position: fixed and measured here, rather than anchored in the
-  // flow. An absolutely positioned popover next to a control on the right of
-  // the screen adds scrollable overflow, and under mobile emulation that
-  // widens the layout viewport — so clamping it against window.innerWidth
-  // chases a number the popover itself has already moved. Taking it out of
-  // flow removes the feedback loop, and clientWidth then stays put.
-  useLayoutEffect(() => {
-    if (!open) { setAt(null); return; }
-    const btn = wrap.current?.querySelector(".info-btn");
-    const el = pop.current;
-    if (!btn || !el) return;
-    const b = btn.getBoundingClientRect();
-    const gutter = 12;
-    const room = document.documentElement.clientWidth - gutter - el.offsetWidth;
-    // Flip above the button when there is no room beneath it. Opening below
-    // the fold would be unreadable, and scrolling to it closes it.
-    const below = b.bottom + 7;
-    const fits = below + el.offsetHeight <= document.documentElement.clientHeight - gutter;
-    setAt({
-      top: fits ? below : Math.max(gutter, b.top - 7 - el.offsetHeight),
-      left: Math.max(gutter, Math.min(b.left - 8, room)),
-    });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false); };
-    const key = (e) => { if (e.key === "Escape") setOpen(false); };
-    // Fixed position cannot follow the page, so close rather than drift.
-    const scrolled = () => setOpen(false);
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", key);
-    window.addEventListener("scroll", scrolled, true);
-    return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", key);
-      window.removeEventListener("scroll", scrolled, true);
-    };
-  }, [open]);
-
-  return (
-    <span className="info" ref={wrap}>
-      <button
-        type="button" className="info-btn" aria-expanded={open}
-        aria-label={open ? `Hide help for ${title}` : `What is ${title}?`}
-        onClick={() => setOpen((o) => !o)}
-      >i</button>
-      {open && (
-        <span
-          className="info-pop" role="tooltip" ref={pop}
-          style={at ? { top: at.top, left: at.left } : { visibility: "hidden" }}
-        >
-          <b>{title}</b>
-          {children}
-        </span>
-      )}
-    </span>
-  );
-}
-
 /* ---------------------------------------------------------- how it works */
 
 const WALKTHROUGH = [
@@ -199,9 +127,10 @@ const WALKTHROUGH = [
   },
 ];
 
-function HowItWorks({ onClose }) {
-  const panel = useRef(null);
-
+/* Shared by every sheet: focus moves in, Escape and a backdrop click close,
+   Tab cycles inside, the page behind stops scrolling, and focus returns to
+   whatever opened it. */
+function useSheet(onClose, panel) {
   useEffect(() => {
     const previous = document.activeElement;
     panel.current?.focus();
@@ -223,19 +152,51 @@ function HowItWorks({ onClose }) {
       document.body.style.overflow = overflow;
       previous?.focus?.();
     };
-  }, [onClose]);
+  }, [onClose, panel]);
+}
 
+function Sheet({ id, title, onClose, children }) {
+  const panel = useRef(null);
+  useSheet(onClose, panel);
   return (
     <div className="sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
-        className="sheet" role="dialog" aria-modal="true" aria-labelledby="hiw-title"
+        className="sheet" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}
         ref={panel} tabIndex={-1}
       >
         <div className="sheet-head">
-          <h2 id="hiw-title">How it works</h2>
+          <h2 id={`${id}-title`}>{title}</h2>
           <button type="button" className="sheet-x" onClick={onClose} aria-label="Close">&times;</button>
         </div>
-        <div className="sheet-body">
+        <div className="sheet-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* One sheet for every term on a step, rather than a dot beside each of them.
+   Six popovers meant six taps to read six sentences, each one closing the
+   last, and none of them readable side by side. */
+function Terms({ title, lede, terms, onClose }) {
+  return (
+    <Sheet id="terms" title={title} onClose={onClose}>
+      {lede && <p className="sheet-lede">{lede}</p>}
+      <dl className="terms">
+        {terms.map((t) => (
+          <div key={t.term}>
+            <dt>{t.term}</dt>
+            <dd>{t.body}</dd>
+          </div>
+        ))}
+      </dl>
+    </Sheet>
+  );
+}
+
+function HowItWorks({ onClose }) {
+  return (
+    <Sheet id="hiw" title="How it works" onClose={onClose}>
+      <>
           <p className="sheet-lede">
             Six steps, from what you have now to what you will actually receive. Change anything at
             any point — the summary at the top updates as you go.
@@ -262,15 +223,14 @@ function HowItWorks({ onClose }) {
               Speak to a regulated adviser before acting on it.
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+      </>
+    </Sheet>
   );
 }
 
 /* ------------------------------------------------------------------ control */
 
-function Control({ id, label, value, onChange, min, max, step, fmt, note, typed, hardMax, info, mark }) {
+function Control({ id, label, value, onChange, min, max, step, fmt, note, typed, hardMax, mark }) {
   const [draft, setDraft] = useState(null);
   const shown = draft !== null ? draft : fmt(value);
 
@@ -325,10 +285,7 @@ function Control({ id, label, value, onChange, min, max, step, fmt, note, typed,
   return (
     <div className="ctl">
       <div className="ctl-head">
-        <label htmlFor={id}>
-          {label}
-          {info && <Info title={label}>{info}</Info>}
-        </label>
+        <label htmlFor={id}>{label}</label>
         <span className="ctl-val">
           {typed ? (
             <input
@@ -613,6 +570,7 @@ export default function PensionPlanner() {
   const [s, setS] = useState(loadState);
   const [step, setStep] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   // One phase editor open at a time. Four expanded editors were most of step
   // 04's length, and nobody tunes four withdrawal rates at once.
   const [openPhase, setOpenPhase] = useState(null);
@@ -655,6 +613,7 @@ export default function PensionPlanner() {
 
   const P = useMemo(() => project(s), [s]);
   const spans = useMemo(() => phaseSpans(s), [s]);
+
   const start = incomeStartAge(s);
   const showToday = s.showToday;
   const lumpMode = s.taxFreeMode === "lump";
@@ -679,6 +638,62 @@ export default function PensionPlanner() {
   const rStar = sustainableRate(s);
   const rStarText = `${rStar.toFixed(1)}%`;
   const rStarUsable = rStar > 0;
+
+  /* Every step carried a dot beside each term it used. Each popover closed the
+     last, so the explanations could never be read beside each other, and the
+     one that measured itself on open was the source of two separate layout
+     bugs. One sheet per step instead, listing that step's terms in the order
+     the step uses them. */
+  const BASIS_TERM = {
+    term: "Future \u00a3 and today\u2019s \u00a3",
+    body: `Two ways of measuring the same sum. Future \u00a3 is the cash that would actually show in the account that year; today\u2019s \u00a3 is what that sum would buy at current prices. The toggle at the top decides which one is the large figure. Today\u2019s \u00a3 leads by default, because it is the honest answer to what a sum will actually buy \u2014 at ${s.inflation}% inflation over ${END_AGE - s.currentAge} years the two drift a long way apart.`,
+  };
+
+  const stepTerms = useMemo(() => {
+    const lump = s.taxFreeMode === "lump";
+    return [
+      [
+        { term: "Current pot", body: "The total across all your pensions today. If you have several, add them up. Old workplace pensions are easy to forget." },
+        { term: "Growth rate", body: "The average yearly return on your investments, before charges. Most platforms and funds take 0.3\u20130.8% a year, so lower this figure to allow for them. This has a bigger effect than anything else on the page." },
+        { term: "Inflation", body: "How fast prices rise. It decides what a future pound is worth today. The Bank of England targets 2%. Over thirty years, 2.5% roughly halves what a pound buys." },
+        BASIS_TERM,
+      ],
+      [
+        { term: "Annual contributions", body: `Everything going in each year: your own payments, your employer\u2019s, and the tax relief. The most you can pay in with tax relief is ${full(ANNUAL_ALLOWANCE)} a year.` },
+        { term: "Contribution increases", body: "How much more you pay in each year, usually because your salary went up. If this is lower than inflation, you are paying in less every year in real terms without noticing." },
+      ],
+      [
+        { term: "Tax-free share", body: `A quarter of whatever you move into drawdown comes to you tax free, up to ${full(TAX_FREE_CAP)} across your lifetime. The other three quarters stay invested and are taxed only when you withdraw them.` },
+        { term: "Take it from age", body: "The earliest you can touch a pension is 55 today, rising to 57 in 2028. Waiting longer leaves the pot invested, so there is usually more to take." },
+        { term: "Spread over", body: "You do not have to move the whole pot into drawdown at once. Take it in slices and the part you have not touched keeps growing, so later slices release more tax-free cash. Providers call this phased crystallisation. It makes no difference once you reach the lifetime cap." },
+      ],
+      [
+        { term: "Start drawing at", body: "The age you start taking a regular income. Contributions stop at the same point, so retiring later means both a bigger pot and fewer years to fund." },
+        { term: "Withdrawal rate", body: "The share of the remaining pot you take each year, so the amount changes as the pot does. Drawing more than the sustainable rate shrinks the pot in real terms; drawing less grows it." },
+        { term: "Sustainable rate", body: "Draw this much each year and the pot holds its value in today\u2019s money. It is set by your growth and inflation rates, not by the size of your pot. Draw more and the pot shrinks in real terms; draw less and it grows. Most people spend their pot down across retirement and vary what they take year to year, so treat it as a reference point, not a target." },
+        { term: "You receive it from", body: "State Pension age is 66, rising to 67 by 2028 and to 68 between 2044 and 2046. Which one applies depends on when you were born. A government review could bring the rise forward, which is why this is adjustable." },
+      ],
+      [
+        { term: "Reading the bars", body: `Each bar is one year. The solid part is what the pot buys in today\u2019s prices; the pale tail is the larger number that will actually show in the account. The gap between them is ${s.inflation}% inflation, compounding over ${END_AGE - s.currentAge} years.` },
+        BASIS_TERM,
+      ],
+      [
+        { term: "Monthly income", body: `The year\u2019s income divided by twelve${s.statePension ? `, State Pension included from ${spAge}` : ""}. A one-off tax-free lump sum is left out \u2014 it has its own column, and spreading it over twelve months would suggest an income you do not get every year.` },
+        { term: lump ? "Annual income" : "Taxable part",
+          body: lump
+            ? `What you draw from the pot that year${s.statePension ? `, plus the State Pension once it starts at ${spAge} \u2014 which is why the figure steps up that year` : ""}. Taxable in full. It does not include the tax-free cash in the same row.`
+            : `The taxable share of each payment${s.statePension ? `, plus the State Pension from ${spAge}` : ""}. Taxable in full. It does not include the tax-free cash in the same row.` },
+        { term: lump ? "Tax-free cash" : "Tax-free part",
+          body: lump
+            ? "Paid when you move part of the pot into drawdown. It is not taxable income and does not use your Personal Allowance."
+            : `The ${s.taxFreePct}% of each payment that is free of tax. It does not use your Personal Allowance.` },
+        { term: `The ${full(TAX_FREE_CAP)} cap`, body: "A lifetime limit on tax-free cash across all your pensions. Once you reach it, every further payment is taxable, however large the pot." },
+        { term: "Phase \u00b7 annual drawdown rate", body: `The coloured edge on each row is the phase it falls in, and the legend gives the percentage of the remaining pot that phase draws each year. Because it is a percentage of what is left, the payment shrinks as the pot does \u2014 the pot never reaches zero, it erodes. Holding its value in real terms needs ${rStarText} a year or less at your growth and inflation.` },
+        { term: "Marginal rate", body: "The rate on your top slice of income \u2014 20%, 40% or 45%. Every figure here is before any tax, so what you keep is lower." },
+        { term: "The Total row", body: "Every payment added up across the whole projection. It is not money available at any one moment." },
+      ],
+    ];
+  }, [s.taxFreeMode, s.taxFreePct, s.statePension, s.inflation, s.currentAge, spAge, rStarText]);
 
   // A year paying only the State Pension is still a year you are paid, so it
   // earns a row once the State Pension is switched on.
@@ -720,6 +735,14 @@ export default function PensionPlanner() {
   return (
     <>
       {helpOpen && <HowItWorks onClose={() => setHelpOpen(false)} />}
+      {termsOpen && (
+        <Terms
+          title="What these terms mean"
+          lede="Every term on this step, in one place. Definition first, then what follows from it."
+          terms={stepTerms[step]}
+          onClose={() => setTermsOpen(false)}
+        />
+      )}
 
       <div className={`verdict${condensed ? " is-condensed" : ""}`}>
         <div className="verdict-in">
@@ -799,6 +822,10 @@ export default function PensionPlanner() {
               <strong> Growth matters most</strong> — a single percentage point, compounded over
               thirty years, moves the final pot more than any other choice here.
             </p>
+            <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
+              <span aria-hidden="true">i</span>
+              What these terms mean
+            </button>
             <div className="echo">
               <span className="e">
                 <span className="k">Pot at {start}</span>
@@ -833,7 +860,6 @@ export default function PensionPlanner() {
                 id="pot" label="Current pot" value={s.currentPot} min={0} max={1000000} step={1000}
                 fmt={full} typed hardMax={5000000} onChange={(v) => update({ currentPot: v })}
                 note="Type an exact figure if the slider can’t reach it."
-                info="The total across all your pensions today. If you have several, add them up. Old workplace pensions are easy to forget."
               />
             </div>
 
@@ -845,13 +871,11 @@ export default function PensionPlanner() {
                 note={s.growth >= 8
                   ? "Optimistic for a long horizon — fees are not deducted."
                   : "Before platform and fund charges of roughly 0.3–0.8%."}
-                info="The average yearly return on your investments, before charges. Most platforms and funds take 0.3–0.8% a year, so lower this figure to allow for them. This has a bigger effect than anything else on the page."
               />
               <Control
                 id="inflation" label="Inflation" value={s.inflation} min={0} max={6} step={0.25}
                 fmt={(v) => `${v}%`} onChange={(v) => update({ inflation: v })}
                 note="Sets how far future £ are discounted to today’s £, and what your contributions have to beat."
-                info="How fast prices rise. It decides what a future pound is worth today. The Bank of England targets 2%. Over thirty years, 2.5% roughly halves what a pound buys."
               />
             </div>
           </section>
@@ -864,6 +888,10 @@ export default function PensionPlanner() {
               What goes into the pot each year while you are working, and how fast that rises.
               Contributions stop the year you start drawing an income.
             </p>
+            <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
+              <span aria-hidden="true">i</span>
+              What these terms mean
+            </button>
             <div className="echo">
               <span className="e">
                 <span className="k">Paying in now</span>
@@ -885,7 +913,6 @@ export default function PensionPlanner() {
                 note={s.annualContrib >= ANNUAL_ALLOWANCE
                   ? `At the ${full(ANNUAL_ALLOWANCE)} annual allowance.`
                   : "You and your employer combined, before tax relief limits."}
-                info={`Everything going in each year: your own payments, your employer's, and the tax relief. The most you can pay in with tax relief is ${full(ANNUAL_ALLOWANCE)} a year.`}
               />
             </div>
 
@@ -898,7 +925,6 @@ export default function PensionPlanner() {
                   : s.contribGrowth < s.inflation
                     ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
                     : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
-                info="How much more you pay in each year, usually because your salary went up. If this is lower than inflation, you are paying in less every year in real terms without noticing."
               />
             </ContributionTrajectory>
           </section>
@@ -911,6 +937,10 @@ export default function PensionPlanner() {
               You get <strong>25% tax free</strong>, capped at {full(TAX_FREE_CAP)} over your lifetime. Take it
               as cash up front, or let a quarter of every payment come to you tax free instead.
             </p>
+            <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
+              <span aria-hidden="true">i</span>
+              What these terms mean
+            </button>
             <div className="echo">
               <span className="e">
                 <span className="k">Tax-free cash</span>
@@ -977,7 +1007,6 @@ export default function PensionPlanner() {
                 note={s.taxFreePct === 25
                   ? `The maximum, capped at ${full(TAX_FREE_CAP)}.`
                   : "Below the 25% maximum — the rest stays invested."}
-                info={`A quarter of whatever you move into drawdown comes to you tax free, up to ${full(TAX_FREE_CAP)} across your lifetime. The other three quarters stay invested and are taxed only when you withdraw them.`}
               />
               {s.taxFreeMode === "ufpls" && (
                 <p className="tcap" style={{ margin: "10px 0 0" }}>
@@ -992,7 +1021,6 @@ export default function PensionPlanner() {
                 note={s.taxFreeTakeAge < 57
                   ? "Minimum access age rises to 57 in 2028."
                   : "At or above the 2028 minimum access age."}
-                info="The earliest you can touch a pension is 55 today, rising to 57 in 2028. Waiting longer leaves the pot invested, so there is usually more to take."
               />
               <Control
                 id="tfyears" label="Spread over" value={s.taxFreeYears} min={1} max={15} step={1}
@@ -1002,7 +1030,6 @@ export default function PensionPlanner() {
                   : P.taxFreePayments.length
                     ? `Phased over ${P.taxFreePayments[0].age}–${P.taxFreePayments[P.taxFreePayments.length - 1].age}. Each slice is taken from a pot that has had longer to grow.`
                     : "Nothing to take — set a tax-free share above 0%."}
-                info="You do not have to move the whole pot into drawdown at once. Take it in slices and the part you have not touched keeps growing, so later slices release more tax-free cash. Providers call this phased crystallisation. It makes no difference once you reach the lifetime cap."
               />
               </>}
             </div>
@@ -1016,6 +1043,10 @@ export default function PensionPlanner() {
               Most people spend more in early retirement and less later. Each phase draws a
               <strong> percentage of whatever is left</strong>, so income falls as the pot does.
             </p>
+            <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
+              <span aria-hidden="true">i</span>
+              What these terms mean
+            </button>
             <div className="echo">
               <span className="e">
                 <span className="k">Starting income</span>
@@ -1034,13 +1065,6 @@ export default function PensionPlanner() {
               <span className="e">
                 <span className="k">
                   Sustainable rate
-                  <Info title="Sustainable rate">
-                    Draw this much each year and the pot holds its value in today&rsquo;s money. It
-                    is set by your growth and inflation rates, not by the size of your pot. Draw
-                    more and the pot shrinks in real terms; draw less and it grows. Most people
-                    spend their pot down across retirement and vary what they take year to year,
-                    so treat it as a reference point, not a target.
-                  </Info>
                 </span>
                 <span className="v">{rStarUsable ? rStarText : "—"}</span>
                 <span className="s">
@@ -1076,7 +1100,6 @@ export default function PensionPlanner() {
                   : s.taxFreeTakeAge > s.drawdownAge && s.taxFreeMode === "lump"
                     ? `Income waits until ${start}, when tax-free cash is taken.`
                     : `Contributions stop at ${start}.`}
-                info="The age you start taking a regular income. Contributions stop at the same point, so retiring later means both a bigger pot and fewer years to fund."
               />
             </div>
 
@@ -1104,7 +1127,6 @@ export default function PensionPlanner() {
                   note={s.statePensionAge === null
                     ? `${derivedSpAge} under the law as it stands, going by your age. Move this to test a change.`
                     : `Set by you. ${derivedSpAge} is what the current timetable gives someone aged ${s.currentAge}.`}
-                  info="State Pension age is 66, rising to 67 by 2028 and to 68 between 2044 and 2046. Which one applies depends on when you were born. A government review could bring the rise forward, which is why this is adjustable."
                 />
               )}
             </div>
@@ -1180,7 +1202,6 @@ export default function PensionPlanner() {
                                 : p.rate > rStar
                                   ? `Above ${rStarText} a year — the pot shrinks in today\u2019s money.`
                                   : `At or below ${rStarText} a year — the pot keeps its value.`}
-                            info="The share of the remaining pot you take each year, so the amount changes as the pot does. Drawing more than the sustainable rate shrinks the pot in real terms; drawing less grows it."
                           />
                           {!sp.isLast && (
                             <Control
@@ -1218,14 +1239,13 @@ export default function PensionPlanner() {
               what the pot buys in <strong>today&rsquo;s £</strong>; the pale tail is the bigger number
               that will show in the account. The gap between them is inflation quietly doing its work.
             </p>
+            <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
+              <span aria-hidden="true">i</span>
+              What these terms mean
+            </button>
             <div className="card">
               <h3>
                 Pot value, age {s.currentAge} to {END_AGE}
-                <Info title="Reading the bars">
-                  Each bar is one year. The solid part is what the pot buys in today&rsquo;s prices;
-                  the pale tail is the larger number that will actually show in the account. The gap
-                  between them is {s.inflation}% inflation, compounding over {END_AGE - s.currentAge} years.
-                </Info>
               </h3>
               <p className="tcap">
                 Balance at the end of each year, after anything taken that year.
@@ -1277,6 +1297,10 @@ export default function PensionPlanner() {
               each in future £ and in today&rsquo;s £. Income falls over time because each phase draws a
               percentage of a shrinking pot.
             </p>
+            <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
+              <span aria-hidden="true">i</span>
+              What these terms mean
+            </button>
             <div className="echo">
               <span className="e">
                 <span className="k">First year&rsquo;s income</span>
@@ -1290,10 +1314,6 @@ export default function PensionPlanner() {
               <span className="e">
                 <span className="k">
                   Taxable, lifetime
-                  <Info title="Marginal rate">
-                    The rate on your top slice of income &mdash; 20%, 40% or 45%. This total is before
-                    any tax, so what you keep is lower.
-                  </Info>
                 </span>
                 <span className="v">{money(showToday ? totals.incToday : totals.incCash)}</span>
                 <span className="s">
@@ -1303,10 +1323,6 @@ export default function PensionPlanner() {
               <span className="e">
                 <span className="k">
                   Tax-free, lifetime
-                  <Info title={`The ${full(TAX_FREE_CAP)} cap`}>
-                    A lifetime limit on tax-free cash across all your pensions. Once you reach it,
-                    every further payment is taxable, however large the pot.
-                  </Info>
                 </span>
                 <span className="v">{money(showToday ? totals.tfToday : totals.tfCash)}</span>
                 <span className="s">
@@ -1328,45 +1344,6 @@ export default function PensionPlanner() {
                 {s.statePension && ` The State Pension is counted in both income columns from ${spAge}.`}
                 {" "}{basisCaption(showToday)}
               </p>
-              <div className="tkey">
-                <span>
-                  {lumpMode ? "Tax-free cash" : "Tax-free part"}
-                  <Info title={lumpMode ? "Tax-free cash" : "Tax-free part"}>
-                    {lumpMode
-                      ? "Paid when you move part of the pot into drawdown. It is not taxable income and does not use your Personal Allowance."
-                      : `The ${s.taxFreePct}% of each payment that is free of tax. It does not use your Personal Allowance.`}
-                  </Info>
-                </span>
-                <span>
-                  {lumpMode ? "Annual income" : "Taxable part"}
-                  <Info title={lumpMode ? "Annual income" : "Taxable part"}>
-                    {lumpMode
-                      ? "What you draw from the pot that year"
-                      : "The taxable share of each payment"}
-                    {s.statePension
-                      ? <>, plus the State Pension once it starts at {spAge} — which is why the figure
-                        steps up that year. Taxable in full. It does not include the tax-free cash in
-                        the same row.</>
-                      : <>. Taxable in full. It does not include the tax-free cash in the same row.</>}
-                  </Info>
-                </span>
-                <span>
-                  Monthly income
-                  <Info title="Monthly income">
-                    The year&rsquo;s income divided by twelve
-                    {s.statePension && <>, State Pension included from {spAge}</>}. A one-off
-                    tax-free lump sum is left out — it has its own column, and spreading it over
-                    twelve months would suggest an income you do not get every year.
-                  </Info>
-                </span>
-                <span>
-                  Total row
-                  <Info title="The Total row">
-                    Every payment added up across the whole projection. It is not money available at
-                    any one moment.
-                  </Info>
-                </span>
-              </div>
               {/* The rate had a column of its own, which repeated one of four
                   values down thirty-four rows and cost 38px the table did not
                   have. It is a property of the phase, so the phase carries it:
