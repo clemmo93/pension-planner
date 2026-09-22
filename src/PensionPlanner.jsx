@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
-import { project, phaseSpans, incomeStartAge, sustainableRate, TAX_FREE_CAP, ANNUAL_ALLOWANCE, END_AGE } from "./projection.js";
+import { project, phaseSpans, incomeStartAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
+  TAX_FREE_CAP, ANNUAL_ALLOWANCE, STATE_PENSION_ANNUAL, END_AGE } from "./projection.js";
 
 const STORE_KEY = "pension-planner.v3";
 
@@ -29,6 +30,11 @@ const DEFAULTS = {
   // "ufpls" leaves the pot alone and makes every payment 25% tax free.
   taxFreeMode: "lump",
   drawdownFollowsTaxFree: false,
+  // On by default: leaving it out understates almost everyone's retirement
+  // income, and by 90 it is the larger half of it. null age means "work it out
+  // from my age"; moving the slider pins an explicit one.
+  statePension: true,
+  statePensionAge: null,
   phases: [
     { rate: 6, years: 10, label: "Active early retirement" },
     { rate: 5, years: 10, label: "Standard drawdown" },
@@ -248,7 +254,7 @@ function HowItWorks({ onClose }) {
             <h3>What this leaves out</h3>
             <ul>
               <li>Income tax. Drawdown income is taxable, so your take-home is lower than the figures shown. Tax-free cash is not.</li>
-              <li>The State Pension, currently around £11,500 a year from 67. It would sit on top of everything here.</li>
+              <li>The State Pension, {full(STATE_PENSION_ANNUAL)} a year at the full rate. Switch it on at step 04 and it is added from the age you reach it.</li>
               <li>Platform and fund charges, usually 0.3–0.8% a year. Lower the growth rate to allow for them.</li>
             </ul>
             <div className="warnbox">
@@ -438,7 +444,7 @@ function Spark({ years, showToday }) {
  * table row, so the figures are finally reachable by a screen reader — the old
  * chart was a single role="img" with the data locked inside it.
  */
-function PotLadder({ years, showToday, keyAges, start, taxFreeAge }) {
+function PotLadder({ years, showToday, keyAges, start, taxFreeAge, statePensionAge: spAge }) {
   const max = Math.max(...years.map((y) => y.pot), 1);
   const keys = new Set(keyAges);
 
@@ -462,7 +468,8 @@ function PotLadder({ years, showToday, keyAges, start, taxFreeAge }) {
           // what actually tells you where your working life ends.
           const isStart = y.age === start;
           const mark = y.age === start ? "Income begins"
-            : y.age === taxFreeAge ? "Tax-free cash" : null;
+            : y.age === taxFreeAge ? "Tax-free cash"
+            : y.age === spAge ? "State Pension" : null;
           const colour = !y.drawing
             ? "var(--accent-2)"
             : y.phaseIndex >= 0 ? phaseVar(y.phaseIndex) : "var(--crit)";
@@ -666,15 +673,22 @@ export default function PensionPlanner() {
   // One number for the whole plan: the rate that holds the pot level in real
   // terms. Below the slider's floor, or at or under zero, there is no rate
   // worth pointing at and the copy has to say that rather than print it.
+  const spAge = resolvedStatePensionAge(s);
+  const derivedSpAge = statePensionAge(s.currentAge);
+
   const rStar = sustainableRate(s);
   const rStarText = `${rStar.toFixed(1)}%`;
   const rStarUsable = rStar > 0;
 
-  const incomeRows = P.years.filter((y) => y.annual > 0 || y.taxFree > 0);
+  // A year paying only the State Pension is still a year you are paid, so it
+  // earns a row once the State Pension is switched on.
+  const incomeRows = P.years.filter((y) => y.annual > 0 || y.taxFree > 0 || y.statePension > 0);
   const totals = incomeRows.reduce((a, r) => ({
     cash: a.cash + r.annual, today: a.today + r.annualToday,
     tfCash: a.tfCash + r.taxFree, tfToday: a.tfToday + r.taxFreeToday,
-  }), { cash: 0, today: 0, tfCash: 0, tfToday: 0 });
+    spCash: a.spCash + r.statePension, spToday: a.spToday + r.statePensionToday,
+    rxCash: a.rxCash + r.received, rxToday: a.rxToday + r.receivedToday,
+  }), { cash: 0, today: 0, tfCash: 0, tfToday: 0, spCash: 0, spToday: 0, rxCash: 0, rxToday: 0 });
 
   // Step 03's tiles were the only money figures ignoring the basis toggle.
   const taxFreeTotalToday = P.taxFreePayments.reduce((a, y) => a + y.taxFreeToday, 0);
@@ -715,7 +729,13 @@ export default function PensionPlanner() {
           </div>
           <div className="verdict-figs">
             <span className="fig">
-              <span className="k">Monthly Income, Year 1</span>
+              {/* Normally the first year of drawdown is a decade before the
+                  State Pension, so the label needs no qualifier. It only earns
+                  one in the rare case where both are paid that year. */}
+              <span className="k">
+                Monthly Income, Year 1
+                {s.statePension && firstIncome && firstIncome.age >= spAge && " (from your pot)"}
+              </span>
               <span className="v">{firstIncome ? full(showToday ? firstIncome.monthlyToday : firstIncome.monthly) : "—"}</span>
               <span className="s">
                 {firstIncome
@@ -1032,6 +1052,35 @@ export default function PensionPlanner() {
               />
             </div>
 
+            {/* The State Pension belongs on this screen rather than with the
+                results: knowing it arrives at 68 is what makes it worth drawing
+                harder from the pot before then and easing off after. */}
+            <div className="card">
+              <h3>State Pension</h3>
+              <label className="linked">
+                <input
+                  type="checkbox" checked={s.statePension}
+                  onChange={(e) => update({ statePension: e.target.checked })}
+                />
+                <span>
+                  <b>Include the State Pension</b>
+                  {full(STATE_PENSION_ANNUAL)} a year at today&rsquo;s full rate, on top of anything
+                  you take from the pot. It rises with inflation here, so it holds its value.
+                </span>
+              </label>
+              {s.statePension && (
+                <Control
+                  id="spage" label="You receive it from" value={spAge} min={60} max={75} step={1}
+                  fmt={(v) => String(v)}
+                  onChange={(v) => update({ statePensionAge: v })}
+                  note={s.statePensionAge === null
+                    ? `${derivedSpAge} under the law as it stands, going by your age. Move this to test a change.`
+                    : `Set by you. ${derivedSpAge} is what the current timetable gives someone aged ${s.currentAge}.`}
+                  info="State Pension age is 66, rising to 67 by 2028 and to 68 between 2044 and 2046. Which one applies depends on when you were born. A government review could bring the rise forward, which is why this is adjustable."
+                />
+              )}
+            </div>
+
             <div className="card">
               <h3>Phases</h3>
               <p className="tcap">
@@ -1156,6 +1205,7 @@ export default function PensionPlanner() {
               <PotLadder
                 years={P.years} showToday={showToday} keyAges={potAges} start={start}
                 taxFreeAge={P.taxFreePayments[0]?.age}
+                statePensionAge={s.statePension ? spAge : undefined}
               />
               <div className="legend">
                 <span><i style={{ background: "var(--accent-2)" }} />Building up</span>
@@ -1178,7 +1228,7 @@ export default function PensionPlanner() {
               <ul>
                 <li>Growth is applied each year after contributions. <strong>Today&rsquo;s £</strong> figures discount the future amount back at {s.inflation}% inflation — the same thing economists call <em>real terms</em>.</li>
                 <li>Platform and fund charges are <strong>not</strong> deducted — typically 0.3–0.8% combined. Lower the growth rate to allow for them.</li>
-                <li>The State Pension (around £11,500 a year from 67) is <strong>not</strong> included, and would sit on top of this.</li>
+                <li>The State Pension does <strong>not</strong> touch the pot — it is paid separately, so none of these bars include it. It shows on the income step.</li>
                 <li>Income tax on anything above the tax-free portion is <strong>not</strong> modelled.</li>
                 <li>Tax-free cash is capped at {full(TAX_FREE_CAP)}; the annual allowance is {full(ANNUAL_ALLOWANCE)}. Minimum access age rises to 57 in 2028.</li>
                 <li>From April 2027 pensions fall within Inheritance Tax.</li>
@@ -1248,6 +1298,27 @@ export default function PensionPlanner() {
                 {" "}{basisCaption(showToday)}
               </p>
               <div className="tkey">
+                {s.statePension && (
+                  <>
+                    <span>
+                      Total received
+                      <Info title="Total received">
+                        Everything paid to you that year: drawdown, any tax-free cash, and the State
+                        Pension. The year you take a lump sum is much larger than the rest — that is
+                        the lump sum, not income you get every year.
+                      </Info>
+                    </span>
+                    <span>
+                      State Pension
+                      <Info title="State Pension">
+                        {full(STATE_PENSION_ANNUAL)} a year at the full rate, from {spAge}. It is
+                        separate from your pot and does not come out of it. Held level in
+                        today&rsquo;s money here, because the triple lock raises it by at least
+                        inflation.
+                      </Info>
+                    </span>
+                  </>
+                )}
                 <span>
                   {lumpMode ? "Tax-free cash" : "Tax-free part"}
                   <Info title={lumpMode ? "Tax-free cash" : "Tax-free part"}>
@@ -1260,7 +1331,7 @@ export default function PensionPlanner() {
                   {lumpMode ? "Annual income" : "Taxable part"}
                   <Info title={lumpMode ? "Annual income" : "Taxable part"}>
                     {lumpMode
-                      ? "Drawdown only. It does not include the tax-free cash shown in the same row. Taxable in full."
+                      ? "Drawdown only. It does not include the tax-free cash or the State Pension shown in the same row. Taxable in full."
                       : "The rest of each payment. Taxed as income at your marginal rate."}
                   </Info>
                 </span>
@@ -1273,8 +1344,8 @@ export default function PensionPlanner() {
                   </Info>
                 </span>
                 <span>
-                  Total paid out
-                  <Info title="Total paid out">
+                  Total row
+                  <Info title="The Total row">
                     Every payment added up across the whole projection. It is not money available at
                     any one moment.
                   </Info>
@@ -1284,43 +1355,65 @@ export default function PensionPlanner() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Age</th><th>Rate</th>
+                      {/* Summary first, breakdown after. Seven columns cannot fit a
+                          phone, so the column you most want — what you actually
+                          received — leads, and the parts that make it up follow. */}
+                      <th>Age</th>
+                      {s.statePension && <th>Total received</th>}
                       <th>{s.taxFreeMode === "lump" ? "Tax-free cash" : "Tax-free part"}</th>
                       <th>{s.taxFreeMode === "lump" ? "Annual income" : "Taxable part"}</th>
+                      {s.statePension && <th>State Pension</th>}
                       <th>Monthly drawdown</th>
+                      <th>Rate</th>
                     </tr>
                   </thead>
                   <tbody>
                     {incomeRows.length === 0 && (
-                      <tr><td colSpan={5} className="muted">No payments yet — set a drawdown age on step 04.</td></tr>
+                      <tr><td colSpan={s.statePension ? 7 : 5} className="muted">No payments yet — set a drawdown age on step 04.</td></tr>
                     )}
                     {incomeRows.map((r) => {
                       const col = r.phaseIndex >= 0 ? phaseVar(r.phaseIndex) : undefined;
                       return (
                         <tr key={r.age} className={r.taxFree > 0 ? "tf-row" : undefined}>
                           <td>{r.age}</td>
-                          <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
-                            {r.rate > 0 ? `${r.rate}%` : "—"}
-                          </td>
+                          {s.statePension && (
+                            <td>{r.received > 0
+                              ? <Cell cash={r.received} today={r.receivedToday} showToday={showToday} fmt={full} />
+                              : <span className="muted">—</span>}</td>
+                          )}
                           <td>{r.taxFree > 0
                             ? <Cell cash={r.taxFree} today={r.taxFreeToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
                           <td>{r.annual > 0
                             ? <Cell cash={r.annual} today={r.annualToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
+                          {s.statePension && (
+                            <td>{r.statePension > 0
+                              ? <Cell cash={r.statePension} today={r.statePensionToday} showToday={showToday} fmt={full} />
+                              : <span className="muted">—</span>}</td>
+                          )}
                           <td>{r.withdrawal > 0
                             ? <Cell cash={r.monthly} today={r.monthlyToday} showToday={showToday} fmt={full} />
                             : <span className="muted">—</span>}</td>
+                          <td style={col ? { color: col, fontWeight: 600 } : undefined} className={col ? undefined : "muted"}>
+                            {r.rate > 0 ? `${r.rate}%` : "—"}
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={2}>Total paid out</td>
+                      <td>Total</td>
+                      {s.statePension && (
+                        <td><Cell cash={totals.rxCash} today={totals.rxToday} showToday={showToday} /></td>
+                      )}
                       <td><Cell cash={totals.tfCash} today={totals.tfToday} showToday={showToday} /></td>
                       <td><Cell cash={totals.cash} today={totals.today} showToday={showToday} /></td>
-                      <td className="muted" style={{ fontWeight: 400 }}>over {incomeRows.length} years</td>
+                      {s.statePension && (
+                        <td><Cell cash={totals.spCash} today={totals.spToday} showToday={showToday} /></td>
+                      )}
+                      <td className="muted" style={{ fontWeight: 400 }} colSpan={2}>over {incomeRows.length} years</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1331,7 +1424,9 @@ export default function PensionPlanner() {
               <h3>Before you spend it</h3>
               <ul>
                 <li>Tax-free cash is genuinely tax free. <strong>Drawdown income is not</strong> — it is taxed as income at your marginal rate, so the take-home figure is lower than shown.</li>
-                <li>The State Pension (around £11,500 a year from 67) would sit on top of these figures and is taxable too.</li>
+                <li>{s.statePension
+                  ? <>The State Pension is included from {spAge} at {full(STATE_PENSION_ANNUAL)} a year, held level in today&rsquo;s money. It is taxable, and it uses up nearly all of your Personal Allowance — so from that age almost every pound taken from the pot is taxed.</>
+                  : <>The State Pension is <strong>switched off</strong>. At the full rate it would add {full(STATE_PENSION_ANNUAL)} a year from {spAge}. Turn it on at step 04.</>}</li>
                 <li>Totals are the sum of every payment across the whole projection, not an amount available at any one moment.</li>
               </ul>
             </div>

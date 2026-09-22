@@ -2,8 +2,36 @@
 // on its own. Every figure the UI shows comes from here.
 
 export const TAX_FREE_CAP = 268275;
+// Full new State Pension, 2026/27. Held as the weekly figure because that is
+// how it is legislated and uprated; the annual figure is derived.
+export const STATE_PENSION_WEEKLY = 241.30;
+export const STATE_PENSION_ANNUAL = STATE_PENSION_WEEKLY * 52;
 export const ANNUAL_ALLOWANCE = 60000;
 export const END_AGE = 90;
+
+/**
+ * The age this person reaches State Pension age, from the statutory timetable.
+ *
+ * 66 today, 67 for anyone born from 6 April 1960, and 68 for anyone born from
+ * 6 April 1977. The planner only knows a whole-number age, so this works off
+ * the birth year and will be a year out for people born either side of early
+ * April — close enough for a projection, and the age is adjustable anyway.
+ *
+ * Derived rather than defaulted to a constant: the planner's own default user
+ * is 30, and would reach State Pension age at 68, not the 67 that a fixed
+ * default would have given them.
+ */
+export function statePensionAge(currentAge, thisYear = new Date().getFullYear()) {
+  const birthYear = thisYear - currentAge;
+  if (birthYear >= 1977) return 68;
+  if (birthYear >= 1960) return 67;
+  return 66;
+}
+
+/** What the plan says State Pension age is — the user's override, or derived. */
+export function resolvedStatePensionAge(s) {
+  return s.statePensionAge ?? statePensionAge(s.currentAge);
+}
 
 /**
  * The age at which drawdown income can actually begin.
@@ -53,6 +81,13 @@ export function project(s) {
   const contributions = [];
   const start = incomeStartAge(s);
   const ufpls = s.taxFreeMode === "ufpls";
+
+  // The State Pension sits outside the pot entirely — it is not drawn from it
+  // and does not affect it. Held flat in today's money: the triple lock raises
+  // it by at least inflation, so treating it as level in real terms is the
+  // conservative reading and needs no extra assumption.
+  const spOn = s.statePension !== false;
+  const spStart = resolvedStatePensionAge(s);
 
   // Map each age to the phase governing it, so the rate lookup is a plain read.
   const byAge = {};
@@ -170,6 +205,13 @@ export function project(s) {
 
     const pot = uncrystallised + crystallised;
 
+    const spToday = spOn && age >= spStart ? STATE_PENSION_ANNUAL : 0;
+    const spCash = spToday * deflator;
+    // Everything actually paid to you this year. Under a lump sum the tax-free
+    // cash is a separate payment on top of the drawdown; under UFPLS it is
+    // already inside it, so adding it again would double count.
+    const receivedToday = drawn / deflator + (ufpls ? 0 : taxFreeThisYear / deflator) + spToday;
+
     years.push({
       age,
       pot: Math.max(pot, 0),
@@ -190,6 +232,10 @@ export function project(s) {
       monthlyToday: drawn / 12 / deflator,
       taxFree: taxFreeThisYear,
       taxFreeToday: taxFreeThisYear / deflator,
+      statePension: spCash,
+      statePensionToday: spToday,
+      received: receivedToday * deflator,
+      receivedToday,
       uncrystallised: Math.max(uncrystallised, 0),
       crystallised: Math.max(crystallised, 0),
       paidIn: contributedTotal,
@@ -206,6 +252,13 @@ export function project(s) {
           monthly: 0, monthlyToday: 0,
           taxFree: 0, taxFreeToday: 0, uncrystallised: 0, crystallised: 0,
           paidIn: contributedTotal, paidInToday: contributedTotalToday,
+          // An empty pot does not stop the State Pension.
+          statePension: (spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0)
+            * Math.pow(1 + s.inflation / 100, a - s.currentAge),
+          statePensionToday: spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0,
+          received: (spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0)
+            * Math.pow(1 + s.inflation / 100, a - s.currentAge),
+          receivedToday: spOn && a >= spStart ? STATE_PENSION_ANNUAL : 0,
           deflator: Math.pow(1 + s.inflation / 100, a - s.currentAge),
         });
       }
@@ -230,5 +283,8 @@ export function project(s) {
     atRetirement,
     incomeStart: start,
     sustainableRate: sustainableRate(s),
+    statePensionOn: spOn,
+    statePensionStart: spStart,
+    statePensionAnnual: STATE_PENSION_ANNUAL,
   };
 }

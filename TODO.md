@@ -22,6 +22,20 @@ It should describe the real-terms trajectory instead. Candidates:
 
 `sustainableRate()` in `src/projection.js` already gives the comparison.
 
+## Step 06's table has outgrown a phone
+
+Seven columns come to 662px against a 317px scroller. "Total received" was
+moved next to Age so the summary is visible without scrolling, but the
+breakdown still needs a sideways drag. A stacked card per year, or a column
+picker, would suit a phone better than a wide table.
+
+## Income tax is not modelled, and the State Pension makes that worse
+
+The full State Pension uses all but £22 of the Personal Allowance, so from
+State Pension age almost every pound drawn from the pot is taxable. The income
+figures are pre-tax and now overstate take-home by roughly a fifth for a basic
+rate payer. Either model basic rate, or make the warning much louder.
+
 ## Echo tiles duplicate the verdict bar
 
 The sticky bar and the per-step echo tiles sometimes show the same number in

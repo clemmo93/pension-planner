@@ -18,9 +18,9 @@ while you adjust anything.
 | 01 | **You** | Age, current pot, growth, inflation |
 | 02 | **Contributions** | What you pay in each year, and how fast it rises |
 | 03 | **Tax-free cash** | The tax-free share, when to take it, and whether as a lump sum or a slice of every payment |
-| 04 | **Drawdown** | When income starts, and up to four withdrawal phases |
+| 04 | **Drawdown** | When income starts, the State Pension, and up to four withdrawal phases |
 | 05 | **Pot value** | Every year from now to 90, as a vertical ladder of bars |
-| 06 | **Income** | Every payment received: drawdown and tax-free cash |
+| 06 | **Income** | Every payment received: drawdown, tax-free cash and the State Pension |
 
 ## Future £ and today's £
 
@@ -70,9 +70,15 @@ pension down across retirement rather than preserve it.
   and the age the pot is crystallised for tax-free cash.
 - Platform fees and fund charges are **not** deducted — typically 0.3–0.8%
   combined. Lower the growth rate to account for them.
-- The State Pension is **not** included and would sit on top.
-- Income tax on withdrawals beyond the tax-free portion is **not** modelled, so
-  the income figures are pre-tax.
+- The State Pension **is** included by default, at the full new rate of £12,548
+  a year, from the age the statutory timetable gives someone your age — 66 now,
+  67 from 2028, 68 for anyone born from April 1977. It is held level in today's
+  money, since the triple lock raises it by at least inflation. Switch it off or
+  change the age on step 04.
+- Income tax is **not** modelled, so every income figure is pre-tax. This
+  matters more once the State Pension is included: at £12,548 it uses all but
+  £22 of the £12,570 Personal Allowance, so from that age almost every pound
+  taken from the pot is taxable.
 - The projection runs to age 90.
 
 UK rules referenced (£268,275 tax-free cap, £60,000 annual allowance, minimum
