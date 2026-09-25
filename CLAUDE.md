@@ -64,9 +64,12 @@ staging hazard above — isolation, not vigilance.
   `git worktree add .claude/worktrees/<name> -b <branch>`. It gets its own
   directory and branch off `origin/main`.
 - Work and commit there on your own branch, staging explicit paths.
-- Land it on `main` when ready: this repo deploys on push to `main`, so a
-  fast-forward `git push origin HEAD:main` — or a PR merged there — is what
-  ships it. Rebase on `origin/main` first if it moved under you.
+- Land it on `main` when ready — this repo deploys on push to `main`. Prefer a
+  PR: `git push -u origin <branch>`, then `gh pr create` and `gh pr merge`. It
+  leaves a reviewable record and runs CI before the change ships, and it is the
+  safer default when two sessions are landing work close together. A
+  fast-forward `git push origin HEAD:main` is fine for a trivial or solo change.
+  Either way, rebase on `origin/main` first if it moved under you.
 - Clean up with `ExitWorktree`, or `git worktree remove .claude/worktrees/<name>`.
 
 A shared checkout is still fine for a lone session; the staging rule above is
