@@ -264,6 +264,26 @@ before or is close enough to fail on a small change:
   palette inverts between themes, so a fixed white label drops through the floor
   in one of them.
 
+**Every pair above is text against its ground — "can you read this". Also check
+"can you see this at all".** A component's own background against the surface it
+sits on is a separate question, and the one that has actually shipped broken:
+`.seg` draws its groove in `--sunk`, an assumption card is already `--sunk`, so
+the control rendered as two labels floating with no pill and no track. Computed
+styles were all correct and text contrast passed; nothing in the method asked
+whether the element was distinguishable from its container.
+
+A groove, a track, a chip or a card takes the tone its container is not.
+`--sunk` inside a `--surface` card; `--surface` inside a `--sunk` card. Measure
+it rather than assume it — the two are one step apart, which is exactly the gap
+that disappears when a component moves.
+
+**A selected-state selector has to match the ARIA the markup actually uses.**
+`.seg` styles both `aria-pressed="true"` and `aria-checked="true"`, because it
+serves step 06's view toggles as a group of toggle buttons and the assumptions
+sheet as a radiogroup. Changing markup from one to the other without changing
+the selector leaves a control where no option ever looks selected — and every
+other check still passes.
+
 ## What not to do
 
 - Do not reintroduce a display serif, or a cream ground.
@@ -273,6 +293,8 @@ before or is close enough to fail on a small change:
 - Do not hardcode a "safe" withdrawal threshold to colour anything by. See
   CLAUDE.md: `sustainableRate()` is the only honest comparison, and an earlier
   version asserted 6%, 4% and 5% in three different places.
+- Do not give a component the same background as the thing it sits on. See
+  Verifying: a groove takes the tone its container is not.
 - Do not let explanatory copy contradict the control it sits under. Monzo's
   own assumptions screen shows "Yearly growth of your pension — 8%" above a
   paragraph beginning "We assume a balanced growth rate of 5%", because the

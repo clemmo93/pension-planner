@@ -39,6 +39,14 @@ nothing.
 
 **Grow, then withdraw.** `pot(1+g)(1−r)` each year.
 
+**Contributions stop at first access, not at income start.** `firstAccessAge()`
+is the earlier of income starting and the tax-free take age. In a phased-lump
+plan the tax-free cash can be taken years before income begins; paying in
+through that gap both overstates the pot and makes each phased crystallisation
+climb faster than growth (it is a share of a pot still being topped up), which
+read as a bug. It is kept separate from `incomeStartAge()`, which still governs
+when drawing and the phase spans begin.
+
 **Withdrawals are a percentage of what remains.** This is the single most
 important consequence in the codebase: the pot decays geometrically and
 **never reaches zero**. Do not write a check against `pot <= 0`, or against the
