@@ -54,6 +54,24 @@ commit object capturing the whole tree and touches neither `HEAD`, the index,
 nor the working files. Tag the SHA it prints and everything on disk is
 recoverable. It does not include untracked files.
 
+## Parallel sessions run in worktrees
+
+The default when more than one session is open: each works in its own git
+worktree, so no two ever write the same files. This is the real fix for the
+staging hazard above — isolation, not vigilance.
+
+- Start one with the `EnterWorktree` tool, or by hand:
+  `git worktree add .claude/worktrees/<name> -b <branch>`. It gets its own
+  directory and branch off `origin/main`.
+- Work and commit there on your own branch, staging explicit paths.
+- Land it on `main` when ready: this repo deploys on push to `main`, so a
+  fast-forward `git push origin HEAD:main` — or a PR merged there — is what
+  ships it. Rebase on `origin/main` first if it moved under you.
+- Clean up with `ExitWorktree`, or `git worktree remove .claude/worktrees/<name>`.
+
+A shared checkout is still fine for a lone session; the staging rule above is
+the fallback for the moments two briefly overlap.
+
 ## The model, and what follows from it
 
 **Two buckets.** The pot is `uncrystallised` + `crystallised`. Tax-free cash is
