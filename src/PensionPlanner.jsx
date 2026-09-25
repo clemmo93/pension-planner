@@ -1500,22 +1500,29 @@ export default function PensionPlanner() {
 
             <div className="card">
               <h3>How you take it</h3>
-              <div className="modes" role="radiogroup" aria-label="How to take tax-free cash">
+              {/* Segmented control, matching the assumptions cap choice and the
+                  step-02 fork: two mutually exclusive modes, so radiogroup with
+                  aria-checked. The description of the chosen mode sits below in
+                  .conseq rather than on each segment. */}
+              <div className="seg seg-full" role="radiogroup" aria-label="How to take tax-free cash">
                 <button
                   type="button" role="radio" aria-checked={s.taxFreeMode === "lump"}
                   onClick={() => update({ taxFreeMode: "lump" })}
                 >
-                  <b>As a lump sum</b>
-                  <span>Take the tax-free cash up front, in one go or over a few years. Income is taxable after that.</span>
+                  As a lump sum
                 </button>
                 <button
                   type="button" role="radio" aria-checked={s.taxFreeMode === "ufpls"}
                   onClick={() => update({ taxFreeMode: "ufpls" })}
                 >
-                  <b>25% of every payment</b>
-                  <span>Take nothing up front. A quarter of each withdrawal is tax free until the lifetime cap is used up.</span>
+                  25% of each payment
                 </button>
               </div>
+              <p className="conseq">
+                {s.taxFreeMode === "lump"
+                  ? "Take the tax-free cash up front, in one go or over a few years. Income is taxable after that."
+                  : "Take nothing up front. A quarter of each withdrawal is tax free until the lifetime cap is used up."}
+              </p>
             </div>
 
             <div className="card">
