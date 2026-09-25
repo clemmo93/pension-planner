@@ -889,6 +889,10 @@ export default function PensionPlanner() {
   const [asmOpen, setAsmOpen] = useState(false);
   const [incomeView, setIncomeView] = useState("columns");
   const [incomeMonthly, setIncomeMonthly] = useState(false);
+  // Whether step 02's manual contribution is shown per month or per year. A
+  // display choice like incomeMonthly, so it lives in component state, not in s.
+  // The model always stores the annual figure; monthly is just annual / 12.
+  const [contribMonthly, setContribMonthly] = useState(false);
   const [selectedAge, setSelectedAge] = useState(null);
   // One phase editor open at a time. Four expanded editors were most of step
   // 04's length, and nobody tunes four withdrawal rates at once.
@@ -1298,6 +1302,10 @@ export default function PensionPlanner() {
             {s.contribMode === "manual" ? (
               <>
                 <div className="echo">
+                  {/* Always the annual figure, even when the input below is set
+                      to monthly — the echo is the running total you are
+                      committing to, and showing it alongside the monthly input
+                      gives both views at once. */}
                   <span className="e">
                     <span className="k">Paying in now</span>
                     <span className="v">{full(s.annualContrib)}</span>
@@ -1311,12 +1319,33 @@ export default function PensionPlanner() {
                 </div>
 
                 <div className="card">
-                  <h3>Your contributions</h3>
+                  {/* Annual/Monthly is a period view, so it takes the same .seg
+                      toggle step 06 uses for income — not a mode choice. The
+                      model keeps the annual figure; monthly is annual / 12 in
+                      and out. */}
+                  <div className="card-head">
+                    <h3>Your contributions</h3>
+                    <div className="seg" role="group" aria-label="Show contribution as">
+                      <button type="button" aria-pressed={!contribMonthly}
+                        onClick={() => setContribMonthly(false)}>Annual</button>
+                      <button type="button" aria-pressed={contribMonthly}
+                        onClick={() => setContribMonthly(true)}>Monthly</button>
+                    </div>
+                  </div>
                   <Control
-                    id="contrib" label="Annual contributions" value={s.annualContrib} min={0} max={ANNUAL_ALLOWANCE} step={250}
-                    fmt={full} typed hardMax={ANNUAL_ALLOWANCE} onChange={(v) => update({ annualContrib: v })}
+                    id="contrib"
+                    label={contribMonthly ? "Monthly contributions" : "Annual contributions"}
+                    value={contribMonthly ? s.annualContrib / 12 : s.annualContrib}
+                    min={0}
+                    max={contribMonthly ? ANNUAL_ALLOWANCE / 12 : ANNUAL_ALLOWANCE}
+                    step={contribMonthly ? 25 : 250}
+                    fmt={full} typed
+                    hardMax={contribMonthly ? ANNUAL_ALLOWANCE / 12 : ANNUAL_ALLOWANCE}
+                    onChange={(v) => update({ annualContrib: contribMonthly ? Math.round(v * 12) : v })}
                     note={s.annualContrib >= ANNUAL_ALLOWANCE
-                      ? `At the ${full(ANNUAL_ALLOWANCE)} annual allowance.`
+                      ? (contribMonthly
+                          ? `At the ${full(ANNUAL_ALLOWANCE / 12)} a month (${full(ANNUAL_ALLOWANCE)} a year) allowance.`
+                          : `At the ${full(ANNUAL_ALLOWANCE)} annual allowance.`)
                       : "You and your employer combined, before tax relief limits."}
                   />
                 </div>
