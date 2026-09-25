@@ -54,6 +54,25 @@ export function incomeStartAge(s) {
   return Math.max(s.drawdownAge, s.taxFreeTakeAge);
 }
 
+/**
+ * The age contributions stop: the first time you take anything out.
+ *
+ * Not when regular income begins — when you first ACCESS the pension. In lump
+ * mode the tax-free cash can be taken years before income starts, and paying in
+ * through that gap both overstates the pot and, because each phased
+ * crystallisation is a share of a pot still being topped up, makes the tax-free
+ * slices climb faster than growth alone. Taking money out is the point you have
+ * stopped building, so that is where contributions end. Recycling tax-free cash
+ * back into contributions is against HMRC rules anyway.
+ *
+ * UFPLS has no separate tax-free event, so access is simply income starting.
+ */
+export function firstAccessAge(s) {
+  const income = incomeStartAge(s);
+  if (s.taxFreeMode === "ufpls") return income;
+  return Math.min(income, s.taxFreeTakeAge);
+}
+
 /** Age ranges each drawdown phase covers, anchored to when income really starts. */
 export function phaseSpans(s) {
   const out = [];
@@ -139,6 +158,10 @@ export function project(s) {
   const years = [];
   const contributions = [];
   const start = incomeStartAge(s);
+  // Contributions stop at first access, which in a phased-lump plan can be
+  // years before income starts. Kept separate from `start` so drawing and the
+  // phase spans still anchor to when income really begins.
+  const contribEnd = firstAccessAge(s);
   const ufpls = s.taxFreeMode === "ufpls";
 
   // The State Pension sits outside the pot entirely — it is not drawn from it
@@ -183,7 +206,7 @@ export function project(s) {
     // paid at your current age, today. Attributing and discounting it at the age
     // it was actually paid is what makes £10,000 paid now worth £10,000 in
     // today's money, and gives one payment for each working year.
-    if (age > s.currentAge && age <= start) {
+    if (age > s.currentAge && age <= contribEnd) {
       const paidAtAge = age - 1;
       const paidDeflator = Math.pow(1 + s.inflation / 100, paidAtAge - s.currentAge);
       uncrystallised += contribution;

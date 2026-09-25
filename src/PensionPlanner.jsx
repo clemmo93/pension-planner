@@ -1,5 +1,5 @@
 import { Fragment, useState, useMemo, useRef, useEffect } from "react";
-import { project, solveContribution, TAX_FREE_RATE, phaseSpans, incomeStartAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
+import { project, solveContribution, TAX_FREE_RATE, phaseSpans, incomeStartAge, firstAccessAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
   TAX_FREE_CAP, ANNUAL_ALLOWANCE, STATE_PENSION_ANNUAL, END_AGE } from "./projection.js";
 
 const STORE_KEY = "pension-planner.v3";
@@ -944,6 +944,10 @@ export default function PensionPlanner() {
   const spans = useMemo(() => phaseSpans(s), [s]);
 
   const start = incomeStartAge(s);
+  // Where paying in stops: first access, which can be the tax-free age, before
+  // income starts. Usually the same as `start`; they differ only in a
+  // phased-lump plan with a gap before income.
+  const accessAge = firstAccessAge(s);
   const showToday = s.showToday;
   const lumpMode = s.taxFreeMode === "lump";
 
@@ -1004,7 +1008,7 @@ export default function PensionPlanner() {
         { term: "Spread over", body: "You do not have to move the whole pot into drawdown at once. Take it in slices and the part you have not touched keeps growing, so later slices release more tax-free cash. Providers call this phased crystallisation. It makes no difference once you reach the lifetime cap." },
       ],
       [
-        { term: "Start drawing at", body: "The age you start taking a regular income. Contributions stop at the same point, so retiring later means both a bigger pot and fewer years to fund." },
+        { term: "Start drawing at", body: "The age you start taking a regular income. Paying in stops when you first take money out — here, or earlier if you take tax-free cash first — so retiring later means both a bigger pot and fewer years to fund." },
         { term: "Withdrawal rate", body: "The share of the remaining pot you take each year, so the amount changes as the pot does. Drawing more than the sustainable rate shrinks the pot in real terms; drawing less grows it." },
         { term: "Sustainable rate", body: "Draw this much each year and the pot holds its value in today\u2019s money. It is set by your growth and inflation rates, not by the size of your pot. Draw more and the pot shrinks in real terms; draw less and it grows. Most people spend their pot down across retirement and vary what they take year to year, so treat it as a reference point, not a target." },
         { term: "You receive it from", body: "State Pension age is 66, rising to 67 by 2028 and to 68 between 2044 and 2046. Which one applies depends on when you were born. A government review could bring the rise forward, which is why this is adjustable." },
@@ -1244,8 +1248,8 @@ export default function PensionPlanner() {
             <h2 className="h" id="h1">What you pay in</h2>
             <p className="lede">
               Two ways to plan what goes in: <strong>set the amount yourself</strong>, or name the
-              income you want and let the planner work back to it. Contributions stop the year you
-              start drawing an income.
+              income you want and let the planner work back to it. Contributions stop once you first
+              take money out.
             </p>
             <div className="helprow">
               <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
@@ -1613,7 +1617,9 @@ export default function PensionPlanner() {
                   ? "Following the tax-free settings. Move this slider to unlink it."
                   : s.taxFreeTakeAge > s.drawdownAge && s.taxFreeMode === "lump"
                     ? `Income waits until ${start}, when tax-free cash is taken.`
-                    : `Contributions stop at ${start}.`}
+                    : accessAge < start
+                      ? `Contributions stop at ${accessAge}, when you take tax-free cash.`
+                      : `Contributions stop at ${start}.`}
               />
             </div>
 
