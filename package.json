@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:wt": "vite --port 5174 --strictPort",
+    "dev:wt2": "vite --port 5175 --strictPort",
     "build": "vite build",
     "preview": "vite preview"
   },

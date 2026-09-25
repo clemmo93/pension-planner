@@ -72,6 +72,20 @@ staging hazard above — isolation, not vigilance.
 A shared checkout is still fine for a lone session; the staging rule above is
 the fallback for the moments two briefly overlap.
 
+**Previewing from a worktree.** The `preview_start` tool is pinned to the main
+checkout — its `launch.json` and working directory both resolve there, so
+`preview_start name: "planner"` serves the main checkout's files, not a
+worktree's. So a worktree runs its own dev server on its own port and the
+browser is pointed straight at it:
+
+```
+npm run dev:wt      # vite on 5174 (dev:wt2 = 5175 for a third session)
+```
+
+Then open it with `preview_start url: "http://localhost:5174"` and navigate to
+`/pension-planner/` (the Vite `base`). The main-checkout session keeps using
+`preview_start name: "planner"` on 5173, so the two never collide.
+
 ## The model, and what follows from it
 
 **Two buckets.** The pot is `uncrystallised` + `crystallised`. Tax-free cash is
