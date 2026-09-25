@@ -16,11 +16,22 @@ while you adjust anything.
 | | Step | What it covers |
 |---|---|---|
 | 01 | **You** | Age, current pot, growth, inflation |
-| 02 | **Contributions** | What you pay in each year, and how fast it rises |
+| 02 | **Contributions** | Either set what you pay in, or set the income you want in early retirement and let the planner work back to the contribution |
 | 03 | **Tax-free cash** | The tax-free share, when to take it, and whether as a lump sum or a slice of every payment |
 | 04 | **Drawdown** | When income starts, the State Pension, and up to four withdrawal phases |
 | 05 | **Pot value** | Every year from now to 90, as a vertical ladder of bars |
 | 06 | **Income** | Every payment received, with the State Pension counted inside the income columns |
+
+## Two directions on one screen
+
+Most calculators run one way: set your contributions, see the outcome. Step 02
+also runs the other way. Choose **"Work out what I need to pay in"**, set the
+income you want in early retirement — from scratch, or from the PLSA Retirement
+Living Standards — and the planner solves the starting contribution that gets
+you there. It is the "reverse pension calculator" the research found people
+hunting for, and it makes the default path answer the question most people
+actually arrive with. The figure is gross for now; the net cost to take-home
+pay is the next layer (see `TODO.md`).
 
 ## Future £ and today's £
 
@@ -99,6 +110,11 @@ marks which ones this planner solves, partly solves, or does not address.
 
 The method has real limits, stated up front: Reddit was never read directly, so
 the frequency bands are a ranked estimate rather than a count.
+
+[`research/uk-tax-ni-reference.md`](research/uk-tax-ni-reference.md) is a
+separate, sourced reference on UK Income Tax, National Insurance, tax codes and
+the three pension contribution methods (2026/27), written to drive the net-cost
+layer that will sit on top of the reverse calculation.
 
 ## Project layout
 

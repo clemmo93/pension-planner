@@ -53,6 +53,24 @@ asserted 6%, 4% and 5% in three different places, none of which moved with the
 inputs, and at 3% growth it called a plan losing 69% in real terms
 "conservative".
 
+## The reverse solve
+
+`solveContribution(s, targetTodayAnnual)` runs the model backwards: given a
+wanted income it returns the starting contribution that produces it. The target
+is the **pot's first-year drawdown income, in today's £** — deliberately, not
+the total including the State Pension, because the first drawdown year lands
+before State Pension age, so the pot supplies all of it, and the later phases and
+the State Pension are consequences the target should not have to describe.
+
+First-year income is monotonic in the contribution, so it bisects — exact, never
+stuck. It returns a `status`: `ok`, `already` (the current pot alone meets the
+target, contribution 0), or `capped` (the £60,000 annual allowance falls short).
+The UI never writes the solved figure back into state; it feeds it into
+`project()` as `annualContrib` for that render only, so manual mode's forward
+path — and its documented figures — stay byte-for-byte unchanged. The solved
+contribution is a present-day amount (deflator 1), the one figure CLAUDE.md
+allows to skip the basis pairing.
+
 ## Recurring traps
 
 **Every money figure must honour the basis toggle.** `showToday` picks future £

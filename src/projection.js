@@ -82,6 +82,59 @@ export function sustainableRate(s) {
   return (s.growth - s.inflation) / (1 + s.growth / 100);
 }
 
+/**
+ * The starting contribution needed to hit a target income.
+ *
+ * The forward model runs contributions to an outcome; this runs it the other
+ * way — the half of the product hypothesis the planner never answered, and the
+ * single most-requested "reverse pension calculator" in the research.
+ *
+ * The target is the income the POT pays in the first drawdown year, in today's
+ * money. That is the honest thing to solve for: it is the "early, active
+ * retirement" figure the user actually reasons about, and it lands before the
+ * State Pension starts, so the pot has to supply all of it. The later phases
+ * then carry the decline on their own rates, and the State Pension stacks on
+ * when it arrives — none of which the target has to describe.
+ *
+ * First-year drawdown is monotonic in the contribution — more paid in means a
+ * bigger pot means a bigger first withdrawal — so a bisection is exact and
+ * cannot get stuck. Everything else is held fixed; only annualContrib moves.
+ *
+ * Returns a status alongside the figure because three answers are all real:
+ *   ok       — solved; `contrib` hits the target.
+ *   already  — the current pot alone already meets or beats it; `contrib` is 0.
+ *   capped   — even the annual allowance falls short; `contrib` is that ceiling
+ *              and `achieved` is as far as it gets.
+ */
+export function solveContribution(s, targetTodayAnnual) {
+  if (!(targetTodayAnnual > 0)) return { contrib: 0, status: "zero", achieved: 0 };
+
+  const firstDraw = (contrib) => {
+    const P = project({ ...s, annualContrib: contrib });
+    return P.firstIncome ? P.firstIncome.withdrawalToday : 0;
+  };
+
+  // The existing pot may already deliver the target with nothing added.
+  const atZero = firstDraw(0);
+  if (atZero >= targetTodayAnnual) return { contrib: 0, status: "already", achieved: atZero };
+
+  // Nothing above the annual allowance can be paid in with tax relief, so the
+  // search never looks past it — and if the ceiling still falls short, say so
+  // rather than returning a figure no one is allowed to pay.
+  const hi0 = ANNUAL_ALLOWANCE;
+  const atHi = firstDraw(hi0);
+  if (atHi < targetTodayAnnual) return { contrib: hi0, status: "capped", achieved: atHi };
+
+  let lo = 0, hi = hi0;
+  // 44 halvings of a £60,000 range settle well inside a penny.
+  for (let i = 0; i < 44; i++) {
+    const mid = (lo + hi) / 2;
+    if (firstDraw(mid) < targetTodayAnnual) lo = mid;
+    else hi = mid;
+  }
+  return { contrib: (lo + hi) / 2, status: "ok", achieved: targetTodayAnnual };
+}
+
 export function project(s) {
   const years = [];
   const contributions = [];

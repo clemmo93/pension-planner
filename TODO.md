@@ -59,23 +59,35 @@ real provider.
 `sustainableRate()` would need it too: net growth is what holds the pot level,
 so `r* = (g - f - i) / (1 + g - f)`.
 
-## There is no "work it out for me"
+## Net cost of contributions — the take-home half of the reverse calculation
 
-The single best idea in Monzo's flow, and the answer to serving both the
-pension-naive and the financially literate on one screen. Its income sheet
-opens with a fork:
+The reverse calculation now solves a target income back to a required
+contribution (see below), but it reports that contribution *gross* — the whole
+amount into the pot. The research (P3, H2) is emphatic that people pull this
+lever as a **percentage of salary via salary sacrifice** and judge it by the
+**cost to take-home pay**, not as an abstract yearly figure. A £10,222 gross
+contribution costs a basic-rate saver about £7,360 in take-home under salary
+sacrifice, a higher-rate saver about £5,927 — a difference big enough that the
+gross figure alone misleads.
 
-- **Work it out for me** — "We'll estimate a yearly amount that could last
-  until you're 90"
-- **I'll choose an amount** — "Set an amount and see how long it lasts"
+Everything needed is in [`research/uk-tax-ni-reference.md`](research/uk-tax-ni-reference.md):
+verified 2026/27 Income Tax and NI bands (rUK and Scotland), the three
+contribution methods (RAS, net pay, salary sacrifice), and a net-cost algorithm
+with worked examples. The build: a salary input on step 02's target mode, a
+method choice, and a second figure under the solved contribution — "£X a month,
+about £Y after tax relief". It stays honest with the app's no-income-tax stance
+because it models relief *given*, not tax on withdrawals.
 
-Same model, two directions. This app only offers the second: you must set
-withdrawal rates before it will tell you anything. A novice has no basis for
-choosing 4% over 6%.
+## Done: the reverse calculation ("work it out for me")
 
-The inverse solve is straightforward — the rate that leaves the pot at zero at
-`END_AGE` — and it makes the default path answer the question the user actually
-arrived with.
+Shipped as a fork on step 02, in Monzo's own shape — "I'll set what I pay in"
+against "Work out what I need to pay in". Target mode takes the income wanted in
+early retirement and solves the starting contribution with
+`solveContribution()` in `projection.js`, a bisection on first-year pot income
+(monotonic, so exact). The PLSA Retirement Living Standards sit as presets
+beside a free slider. The solved contribution flows into steps 03–06 as if
+typed, so nothing downstream is a special case. What is left is the net-cost
+layer above.
 
 ## Key assumptions belongs on one screen, and replaces the glossary idea
 
@@ -99,15 +111,16 @@ Two of its entries are things this app should be saying and does not:
 
 ## A benchmark for what income to aim at
 
-Monzo shows "You might need 50% of your current income for a comfortable
-retirement lifestyle", backed by a table sourced to the DWP: up to £12,199
-needs 80%, £12,200-£22,399 needs 70%, £22,400-£31,999 needs 67%,
-£32,000-£51,299 needs 60%, £51,300 and above needs 50%.
+Partly addressed. Step 02's target mode now offers the PLSA Retirement Living
+Standards (minimum / moderate / comfortable, single person) as presets for the
+income to aim *at*, sourced and framed as a reference rather than a target.
 
-This app computes an income and never says whether it is enough. Offering the
-benchmark as context — not as a target, and with the source named — would let
-the number mean something. It needs a current salary input, which the app does
-not currently ask for.
+What is still missing is the other benchmark: whether a computed income is
+enough relative to the user's *current* salary. Monzo shows "You might need 50%
+of your current income for a comfortable retirement lifestyle", backed by a DWP
+table: up to £12,199 needs 80%, £12,200-£22,399 needs 70%, £22,400-£31,999 needs
+67%, £32,000-£51,299 needs 60%, £51,300 and above needs 50%. That needs the same
+salary input the net-cost work above wants, so the two belong together.
 
 ## Charts should carry four labels, not sixty-one
 

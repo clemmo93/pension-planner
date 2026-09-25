@@ -376,6 +376,54 @@ h2.h {
 }
 .echo .s { display: block; font-size: 11px; color: var(--ink-2); }
 
+/* --- target income: PLSA presets that snap a free slider ---
+   Chips beside a slider, not instead of it: the standards give a novice a place
+   to start, the slider keeps every other value reachable. Same pressed
+   treatment as .modes so a selected preset reads the same way everywhere. */
+.chips { display: flex; gap: 8px; margin: 0 0 8px; }
+.chips button {
+  flex: 1; min-width: 0; cursor: pointer; text-align: center;
+  background: var(--sunk); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 6px;
+}
+.chips button:hover { border-color: var(--line-strong); }
+.chips button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); }
+.chips .cl {
+  display: block; font-size: 11px; font-weight: 600; color: var(--ink-2);
+}
+.chips button[aria-pressed="true"] .cl { color: var(--accent); }
+.chips .cv {
+  display: block; margin-top: 1px;
+  font-family: var(--display); font-size: 15px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.chips-cap { margin: 0 0 14px; font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+
+/* --- the solved contribution: the one figure this whole mode exists to give ---
+   Built on the same accent-washed strip as .echo, but with the display-size
+   figure, because it is the answer rather than an aside. The pounds take the
+   numeral rule; the "a month" is a word, not pence, so it is a plain smaller
+   run. The figure is a present-day amount — a contribution paid this year — so
+   its deflator is 1 and it carries no basis pairing, the one case CLAUDE.md
+   allows a single figure. */
+.solved {
+  background: var(--accent-wash); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.solved .k {
+  display: block; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2);
+}
+.solved .v {
+  display: block; margin: 3px 0 2px;
+  font-family: var(--display); font-size: 32px; font-weight: 800;
+  letter-spacing: -.02em; line-height: 1.02; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.solved .v small { font-size: 14px; font-weight: 700; letter-spacing: 0; }
+.solved .s { display: block; font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+
 /* --- phases --- */
 .swatch {
   width: 20px; height: 20px; border-radius: 6px; flex: none;
@@ -720,6 +768,10 @@ tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding
   padding: 5px 11px; border-radius: 999px; cursor: pointer;
 }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-phase); }
+/* Full-width variant for a step's primary mode choice, rather than a view
+   toggle: the two halves split the row and are sized for a real decision. */
+.seg.seg-full { width: 100%; }
+.seg.seg-full button { flex: 1; padding: 10px 12px; font-size: 13px; letter-spacing: .01em; }
 
 .ic-read {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
@@ -896,26 +948,20 @@ tfoot td { border-top: 1.5px solid var(--line-strong); border-bottom: 0; padding
 .terms.asm dt {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
 }
+.asm-seg { margin-top: 12px; }
+.asm-seg button { flex: 1; }
+.conseq {
+  margin: 9px 0 0; font-size: 12px; line-height: 1.55; color: var(--ink-2);
+}
+.conseq b {
+  color: var(--ink); font-weight: 700;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
 .terms.asm dt span {
   flex: none; font-size: 12px; font-weight: 700; color: var(--accent);
   font-variant-numeric: tabular-nums; text-align: right;
 }
-.asm-choice { display: grid; gap: 7px; margin-top: 11px; }
-.asm-choice button {
-  display: block; width: 100%; text-align: left; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: 10px; padding: 10px 12px;
-}
-.asm-choice button:hover { border-color: var(--line-strong); }
-.asm-choice button[aria-pressed="true"] {
-  border-color: var(--accent); background: var(--accent-wash);
-}
-.asm-choice b {
-  display: block; margin-bottom: 2px;
-  font-size: 13px; font-weight: 700; color: var(--ink);
-}
-.asm-choice button[aria-pressed="true"] b { color: var(--accent); }
-.asm-choice span { display: block; font-size: 11.5px; color: var(--ink-2); line-height: 1.45; }
 
 /* A Control inside the assumptions sheet sits on --sunk rather than in a card,
    so its groove and typed field need the tone above it to stay distinct. */

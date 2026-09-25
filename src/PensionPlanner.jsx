@@ -1,5 +1,5 @@
 import { Fragment, useState, useMemo, useRef, useEffect } from "react";
-import { project, TAX_FREE_RATE, phaseSpans, incomeStartAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
+import { project, solveContribution, TAX_FREE_RATE, phaseSpans, incomeStartAge, sustainableRate, resolvedStatePensionAge, statePensionAge,
   TAX_FREE_CAP, ANNUAL_ALLOWANCE, STATE_PENSION_ANNUAL, END_AGE } from "./projection.js";
 
 const STORE_KEY = "pension-planner.v3";
@@ -15,10 +15,29 @@ const DEFAULT_INFLATION = 2.5;
 const RATE_MIN = 1;
 const RATE_MAX = 15;
 
+// PLSA Retirement Living Standards 2025 (single person, housing excluded) — the
+// benchmark every UK retirement-income thread reaches for. Offered as a place
+// to start, never as a target: picking one only moves the slider, which stays
+// free to land anywhere. Figures are yearly, in today's money.
+const PLSA_YEAR = 2025;
+const PLSA = [
+  { key: "min", label: "Minimum", amount: 13400 },
+  { key: "mod", label: "Moderate", amount: 31700 },
+  { key: "comf", label: "Comfortable", amount: 43900 },
+];
+
 const DEFAULTS = {
   currentAge: 30,
   currentPot: 100000,
   annualContrib: 10000,
+  // Which direction step 02 runs. "manual" sets a contribution and shows the
+  // income it builds; "target" sets the income wanted in early retirement and
+  // solves the contribution backwards. Defaults to manual so the forward path
+  // and its documented figures are untouched on first load.
+  contribMode: "manual",
+  // The yearly income wanted from the pot in early retirement, today's £.
+  // Only read in target mode. Defaults to the PLSA moderate standard.
+  targetIncome: 31700,
   growth: 6,
   contribGrowth: DEFAULT_INFLATION,
   inflation: DEFAULT_INFLATION,
@@ -199,6 +218,51 @@ function Terms({ title, lede, terms, onClose }) {
    rather than to a step. Values that have a control of their own are stated
    and point at it; the ones with nowhere else to live are editable here. */
 function Assumptions({ s, update, onClose }) {
+  /* What the setting is actually worth, run through the same model rather than
+     written down once. Below the cap it changes nothing at all, and saying so
+     is more useful than quoting a difference of zero. */
+  const capEffect = useMemo(() => {
+    const at = (uprated) => {
+      const P = project({ ...s, taxFreeCapUprated: uprated });
+      return {
+        tf: P.taxFreeTotalToday,
+        mo: P.years.find((y) => y.incomeMonthlyToday > 0)?.incomeMonthlyToday ?? 0,
+      };
+    };
+    const up = at(true), fixed = at(false);
+    const gap = up.tf - fixed.tf;
+    if (gap < 1) {
+      return (
+        <>
+          Your pot is what limits the tax-free cash here, not the cap, so this
+          setting makes no difference to your plan.
+        </>
+      );
+    }
+    const income = up.mo - fixed.mo;
+    const now = s.taxFreeCapUprated ? up : fixed;
+    return (
+      <>
+        {/* Which of the two is actually limiting you depends on the pot, so
+            the sentence has to check rather than assert. It said "never binds"
+            while reporting the cap to the pound. */}
+        {s.taxFreeCapUprated
+          ? (now.tf >= TAX_FREE_CAP - 1
+              ? <>The cap holds its value and you reach it: the full <b>{full(TAX_FREE_CAP)}</b>, tax free, in today&rsquo;s money.</>
+              : <>The cap holds its value, so your pot is what limits you here: <b>{full(now.tf)}</b> tax free in today&rsquo;s money.</>)
+          : <>Today&rsquo;s policy. You take <b>{full(now.tf)}</b> tax free in today&rsquo;s money.</>}
+        {" "}
+        {s.taxFreeCapUprated
+          ? <>That is <b>{full(gap)}</b> more than if it stayed fixed</>
+          : <>Letting it rise would pay <b>{full(gap)}</b> more</>}
+        {/* The trade, not just the gain: cash taken up front has left the pot,
+            so it is no longer paying income. Both branches compare the same
+            pair, so both take the same sign. */}
+        {income < -1 && <>, and <b>{full(-income)}</b> a month less income</>}.
+      </>
+    );
+  }, [s]);
+
   const row = (term, value, body, control) => ({ term, value, body, control });
   const items = [
     row("Investment growth", `${s.growth}% a year`,
@@ -227,18 +291,19 @@ function Assumptions({ s, update, onClose }) {
         take less than a quarter of a crystallisation and the difference is forfeited, not
         carried over. What you choose is how much to move and when.
       </>,
-      <div className="asm-choice" role="group" aria-label="The cap over time">
-        <button type="button" aria-pressed={s.taxFreeCapUprated}
-          onClick={() => update({ taxFreeCapUprated: true })}>
-          <b>Rises with inflation</b>
-          <span>Holds {full(TAX_FREE_CAP)} in today&rsquo;s money</span>
-        </button>
-        <button type="button" aria-pressed={!s.taxFreeCapUprated}
-          onClick={() => update({ taxFreeCapUprated: false })}>
-          <b>Frozen in cash</b>
-          <span>Current policy. Worth less every year</span>
-        </button>
-      </div>),
+      <>
+        <div className="seg asm-seg" role="radiogroup" aria-label="The cap over time">
+          <button type="button" role="radio" aria-checked={s.taxFreeCapUprated}
+            onClick={() => update({ taxFreeCapUprated: true })}>
+            Rises with inflation
+          </button>
+          <button type="button" role="radio" aria-checked={!s.taxFreeCapUprated}
+            onClick={() => update({ taxFreeCapUprated: false })}>
+            Stays at {full(TAX_FREE_CAP)}
+          </button>
+        </div>
+        <p className="conseq">{capEffect}</p>
+      </>),
     row("State Pension", s.statePension ? `${full(STATE_PENSION_ANNUAL)} a year` : "Switched off",
       "Assumed paid at the full rate and held level in today\u2019s money, from the age you reach it. It is taxable. Switch it on or off on step 04.",
       null),
@@ -865,7 +930,17 @@ export default function PensionPlanner() {
     setOpenPhase(null);
   };
 
-  const P = useMemo(() => project(s), [s]);
+  // In target mode the contribution is derived, not typed: solve it backwards
+  // from the wanted income, then run the projection on that figure so every
+  // downstream step and the verdict bar reflect it exactly as if it had been
+  // entered by hand. Manual mode leaves annualContrib alone, so the forward
+  // path is byte-for-byte what it was.
+  const solved = useMemo(
+    () => (s.contribMode === "target" ? solveContribution(s, s.targetIncome) : null),
+    [s]
+  );
+  const effContrib = solved ? solved.contrib : s.annualContrib;
+  const P = useMemo(() => project({ ...s, annualContrib: effContrib }), [s, effContrib]);
   const spans = useMemo(() => phaseSpans(s), [s]);
 
   const start = incomeStartAge(s);
@@ -912,10 +987,17 @@ export default function PensionPlanner() {
         { term: "Inflation", body: "How fast prices rise. It decides what a future pound is worth today. The Bank of England targets 2%. Over thirty years, 2.5% roughly halves what a pound buys." },
         BASIS_TERM,
       ],
-      [
-        { term: "Annual contributions", body: `Everything going in each year: your own payments, your employer\u2019s, and the tax relief. The most you can pay in with tax relief is ${full(ANNUAL_ALLOWANCE)} a year.` },
-        { term: "Contribution increases", body: "How much more you pay in each year, usually because your salary went up. If this is lower than inflation, you are paying in less every year in real terms without noticing." },
-      ],
+      s.contribMode === "target"
+        ? [
+            { term: "Target income", body: "The yearly income you want your pot to pay in early retirement \u2014 your first, most active phase. The planner works backwards from it to the contribution needed. It is income from the pot only, before the State Pension starts and before any tax." },
+            { term: "Retirement Living Standards", body: `The PLSA\u2019s benchmarks for a single person\u2019s yearly spending in retirement \u2014 minimum, moderate and comfortable. They are the figures UK retirement discussions reach for most. They exclude housing costs and assume the money is spent rather than preserved. A starting point, not a recommendation: the slider is free to land anywhere.` },
+            { term: "What you need to pay in", body: "The yearly contribution that makes your pot deliver the target in its first phase, found by running the projection backwards. It is a starting figure paid this year, which then rises by your contribution increases each year after." },
+            { term: "Contribution increases", body: "How much more you pay in each year, usually because your salary went up. If this is lower than inflation, you are paying in less every year in real terms without noticing." },
+          ]
+        : [
+            { term: "Annual contributions", body: `Everything going in each year: your own payments, your employer\u2019s, and the tax relief. The most you can pay in with tax relief is ${full(ANNUAL_ALLOWANCE)} a year.` },
+            { term: "Contribution increases", body: "How much more you pay in each year, usually because your salary went up. If this is lower than inflation, you are paying in less every year in real terms without noticing." },
+          ],
       [
         { term: "How much comes to you tax free", body: `A quarter of whatever you move into drawdown, up to ${full(TAX_FREE_CAP)} across your lifetime. The other three quarters stay invested and are taxed only when you withdraw them. The share is not a choice — taking less than a quarter of a crystallisation forfeits the difference, so what you decide is how much to move, not what share of it to take.` },
         { term: "Take it from age", body: "The earliest you can touch a pension is 55 today, rising to 57 in 2028. Waiting longer leaves the pot invested, so there is usually more to take." },
@@ -947,7 +1029,7 @@ export default function PensionPlanner() {
         { term: "The Total row", body: "Every payment added up across the whole projection. It is not money available at any one moment." },
       ],
     ];
-  }, [s.taxFreeMode, s.statePension, s.inflation, s.currentAge, spAge, rStarText]);
+  }, [s.taxFreeMode, s.statePension, s.inflation, s.currentAge, spAge, rStarText, s.contribMode]);
 
   // A year paying only the State Pension is still a year you are paid, so it
   // earns a row once the State Pension is switched on.
@@ -1161,8 +1243,9 @@ export default function PensionPlanner() {
           <section aria-labelledby="h1">
             <h2 className="h" id="h1">What you pay in</h2>
             <p className="lede">
-              What goes into the pot each year while you are working, and how fast that rises.
-              Contributions stop the year you start drawing an income.
+              Two ways to plan what goes in: <strong>set the amount yourself</strong>, or name the
+              income you want and let the planner work back to it. Contributions stop the year you
+              start drawing an income.
             </p>
             <div className="helprow">
               <button type="button" className="termsbtn" onClick={() => setTermsOpen(true)}>
@@ -1174,41 +1257,185 @@ export default function PensionPlanner() {
                 Assumptions
               </button>
             </div>
-            <div className="echo">
-              <span className="e">
-                <span className="k">Paying in now</span>
-                <span className="v">{full(s.annualContrib)}</span>
-                <span className="s">a year, from age {s.currentAge}</span>
-              </span>
-              <span className="e">
-                <span className="k">Total by {start}</span>
-                <span className="v">{money(showToday ? P.contributedTotalToday : P.contributedTotal)}</span>
-                <span className="s">over {P.contributions.length} years</span>
-              </span>
-            </div>
 
+            {/* The fork, in Monzo's own shape: one model, two directions, both
+                offered up front. The novice who cannot pick a contribution out
+                of the air states an income instead; the expert who knows the
+                figure sets it directly. Either way the answer flows into the
+                same steps 03–06. */}
             <div className="card">
-              <h3>Your contributions</h3>
-              <Control
-                id="contrib" label="Annual contributions" value={s.annualContrib} min={0} max={ANNUAL_ALLOWANCE} step={250}
-                fmt={full} typed hardMax={ANNUAL_ALLOWANCE} onChange={(v) => update({ annualContrib: v })}
-                note={s.annualContrib >= ANNUAL_ALLOWANCE
-                  ? `At the ${full(ANNUAL_ALLOWANCE)} annual allowance.`
-                  : "You and your employer combined, before tax relief limits."}
-              />
+              <h3>How do you want to work this out?</h3>
+              {/* A segmented control, not two radio cards: the same component the
+                  income views use, because this is the same kind of choice — one
+                  of two mutually exclusive modes, switched often. The active
+                  mode's description sits below rather than on each segment, so a
+                  segment carries a label and nothing else. */}
+              <div className="seg seg-full" role="group" aria-label="How to work out contributions">
+                <button
+                  type="button" aria-pressed={s.contribMode === "manual"}
+                  onClick={() => update({ contribMode: "manual" })}
+                >
+                  I&rsquo;ll set the amount
+                </button>
+                <button
+                  type="button" aria-pressed={s.contribMode === "target"}
+                  onClick={() => update({ contribMode: "target" })}
+                >
+                  Work it out for me
+                </button>
+              </div>
+              <p className="tcap" style={{ margin: "12px 0 0" }}>
+                {s.contribMode === "target"
+                  ? "Set the income you want in early retirement, and the planner finds the contribution that gets you there."
+                  : "Enter a yearly contribution and see the income it builds."}
+              </p>
             </div>
 
-            <ContributionTrajectory contributions={P.contributions}>
-              <Control
-                id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
-                fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
-                note={s.contribGrowth === s.inflation
-                  ? "Matching inflation — your contributions hold their value."
-                  : s.contribGrowth < s.inflation
-                    ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
-                    : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
-              />
-            </ContributionTrajectory>
+            {s.contribMode === "manual" ? (
+              <>
+                <div className="echo">
+                  <span className="e">
+                    <span className="k">Paying in now</span>
+                    <span className="v">{full(s.annualContrib)}</span>
+                    <span className="s">a year, from age {s.currentAge}</span>
+                  </span>
+                  <span className="e">
+                    <span className="k">Total by {start}</span>
+                    <span className="v">{money(showToday ? P.contributedTotalToday : P.contributedTotal)}</span>
+                    <span className="s">over {P.contributions.length} years</span>
+                  </span>
+                </div>
+
+                <div className="card">
+                  <h3>Your contributions</h3>
+                  <Control
+                    id="contrib" label="Annual contributions" value={s.annualContrib} min={0} max={ANNUAL_ALLOWANCE} step={250}
+                    fmt={full} typed hardMax={ANNUAL_ALLOWANCE} onChange={(v) => update({ annualContrib: v })}
+                    note={s.annualContrib >= ANNUAL_ALLOWANCE
+                      ? `At the ${full(ANNUAL_ALLOWANCE)} annual allowance.`
+                      : "You and your employer combined, before tax relief limits."}
+                  />
+                </div>
+
+                <ContributionTrajectory contributions={P.contributions}>
+                  <Control
+                    id="cgrow" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
+                    fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
+                    note={s.contribGrowth === s.inflation
+                      ? "Matching inflation — your contributions hold their value."
+                      : s.contribGrowth < s.inflation
+                        ? `Below ${s.inflation}% inflation — contributions shrink in real terms.`
+                        : `Above ${s.inflation}% inflation — contributions grow in real terms.`}
+                  />
+                </ContributionTrajectory>
+              </>
+            ) : (
+              <>
+                <div className="echo">
+                  <span className="e">
+                    <span className="k">Pot at {start}</span>
+                    <span className="v">{atRetirement ? money(showToday ? atRetirement.potGrossToday : atRetirement.potGross) : "—"}</span>
+                    <span className="s">before any withdrawal</span>
+                  </span>
+                  <span className="e">
+                    <span className="k">Total paid in by {start}</span>
+                    <span className="v">{money(showToday ? P.contributedTotalToday : P.contributedTotal)}</span>
+                    <span className="s">over {P.contributions.length} years</span>
+                  </span>
+                </div>
+
+                <div className="card">
+                  <h3>The income you want</h3>
+                  <p className="tcap">
+                    The yearly income you&rsquo;d want from your pot in <strong>early, active retirement</strong> —
+                    your first phase. The later years ease down on the phases you set next.
+                  </p>
+                  {/* Presets that snap the free slider — the PLSA standards for
+                      someone who has no figure of their own, without taking the
+                      slider away from someone who does. Picking one only moves
+                      the slider; dragging clears the selection. */}
+                  <div className="chips" role="group" aria-label="Retirement Living Standards">
+                    {PLSA.map((p) => (
+                      <button
+                        key={p.key} type="button" aria-pressed={s.targetIncome === p.amount}
+                        onClick={() => update({ targetIncome: p.amount })}
+                      >
+                        <span className="cl">{p.label}</span>
+                        <span className="cv">{full(p.amount)}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="chips-cap">
+                    PLSA Retirement Living Standards {PLSA_YEAR}, single person, housing excluded.
+                    A reference, not a target — set any figure below.
+                  </p>
+                  <Control
+                    id="target" label="Target yearly income" value={s.targetIncome} min={5000} max={80000} step={500}
+                    fmt={full} typed hardMax={200000} onChange={(v) => update({ targetIncome: v })}
+                    note={`${full(s.targetIncome / 12)} a month, in today’s money, before tax.`}
+                  />
+                </div>
+
+                {/* The answer owns the contribution figure; the verdict bar owns
+                    the resulting income; the echo owns the pot. Nothing states
+                    the same number twice. A starting contribution is paid now,
+                    so its deflator is 1 and it needs no basis pairing. */}
+                {solved && solved.status === "ok" && (
+                  <div className="solved">
+                    <span className="k">To get there, pay in</span>
+                    <span className="v">{full(solved.contrib / 12)}<small> a month</small></span>
+                    <span className="s">
+                      {full(solved.contrib)} a year to start, rising {s.contribGrowth}% a year.
+                      In today&rsquo;s money, before tax.
+                    </span>
+                  </div>
+                )}
+                {solved && solved.status === "already" && (
+                  <div className="solved">
+                    <span className="k">You&rsquo;re on track already</span>
+                    <span className="v">£0<small> more needed</small></span>
+                    <span className="s">
+                      Your current pot alone reaches about {full(solved.achieved)} a year from {start},
+                      before you add another penny. Aim higher, or keep paying in to build a cushion.
+                    </span>
+                  </div>
+                )}
+                {solved && solved.status === "capped" && (
+                  <div className="solved">
+                    <span className="k">Beyond what you can pay in</span>
+                    <span className="v">{full(ANNUAL_ALLOWANCE)}<small> a year, the most with tax relief</small></span>
+                    <span className="s">
+                      Even the full {full(ANNUAL_ALLOWANCE)} a year reaches about {full(solved.achieved)},
+                      short of {full(s.targetIncome)}. Retire later, assume higher growth, or aim lower.
+                    </span>
+                  </div>
+                )}
+
+                <div className="notes">
+                  <h3>What this figure includes</h3>
+                  <ul>
+                    <li>This is the income your <strong>pot</strong> pays in its first phase. Until the State Pension starts at {spAge}, it is your whole retirement income.</li>
+                    <li>{s.statePension
+                      ? <>From {spAge} the State Pension adds {full(STATE_PENSION_ANNUAL)} a year on top, so your total income rises then — the pot does not have to fund everything forever.</>
+                      : <>The State Pension is <strong>switched off</strong>. At the full rate it would add {full(STATE_PENSION_ANNUAL)} a year from {spAge} on top of this. Turn it on at step 04.</>}</li>
+                    <li>Later phases draw less as the pot shrinks. Set their rates, and when income starts, on the next steps.</li>
+                    <li>Every figure is <strong>before income tax</strong>. Tax-free cash is separate.</li>
+                  </ul>
+                </div>
+
+                <ContributionTrajectory contributions={P.contributions}>
+                  <Control
+                    id="cgrow-t" label="Contribution increases" value={s.contribGrowth} min={0} max={10} step={0.5}
+                    fmt={(v) => `${v}%`} onChange={(v) => update({ contribGrowth: v })}
+                    note={s.contribGrowth === s.inflation
+                      ? "Matching inflation — what you pay in holds its value, and so does the target."
+                      : s.contribGrowth < s.inflation
+                        ? `Below ${s.inflation}% inflation — contributions shrink in real terms, so the starting figure has to be higher.`
+                        : `Above ${s.inflation}% inflation — contributions grow in real terms, so the starting figure can be lower.`}
+                  />
+                </ContributionTrajectory>
+              </>
+            )}
           </section>
         )}
 
