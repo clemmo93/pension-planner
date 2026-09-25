@@ -27,6 +27,33 @@ research/               desk research: what people ask, and the problem
 Do that before touching the UI when a number looks wrong — it is much faster
 than reasoning about the render.
 
+## Committing
+
+**Stage explicit paths. Never `git add -A` or `git add .`.**
+
+More than one session can be working in this checkout at once. `-A` sweeps
+whatever the other one has in flight into your commit, and the message then
+describes something the commit does not contain. That has happened twice: a
+segmented-control fix landed inside a commit about a reverse calculator, and a
+docs-only change shipped a projection-maths change under a PR body that said
+"no code change".
+
+Run `git status` before staging, name the files you actually touched, and check
+`git show --stat` after committing says what you expected.
+
+**A branch does not isolate a second session; a worktree does.** Both sessions
+share one `HEAD` here, so `git checkout -b` moves the branch under the other
+one too. For real separation give each session its own directory:
+
+```
+git worktree add ../planner-feature -b feature-name
+```
+
+For a quick safety net without disturbing anyone, `git stash create` writes a
+commit object capturing the whole tree and touches neither `HEAD`, the index,
+nor the working files. Tag the SHA it prints and everything on disk is
+recoverable. It does not include untracked files.
+
 ## The model, and what follows from it
 
 **Two buckets.** The pot is `uncrystallised` + `crystallised`. Tax-free cash is
