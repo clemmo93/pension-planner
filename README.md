@@ -89,6 +89,17 @@ from April 2027) reflect the position at the time of writing and may change.
 > scenarios. Speak to a regulated financial adviser before making decisions
 > about your pension.
 
+## Research
+
+[`research/`](research/) holds desk research into where UK pension questions get
+asked online and what people actually ask — roughly 330 threads across Reddit,
+MoneySavingExpert and The Lemon Fool, plus FCA and PLSA figures and a survey of
+the calculators people already use. It sets out eight problem statements and
+marks which ones this planner solves, partly solves, or does not address.
+
+The method has real limits, stated up front: Reddit was never read directly, so
+the frequency bands are a ranked estimate rather than a count.
+
 ## Project layout
 
 ```
@@ -97,6 +108,7 @@ src/PensionPlanner.jsx the six-step interface
 src/styles.css         design tokens and components (light and dark)
 CLAUDE.md              conventions and the traps worth knowing before editing
 TODO.md                known gaps, with enough context to act on them
+research/              what people actually ask about pensions, and who else answers it
 ```
 
 Keeping the maths in its own module means the projection can be exercised

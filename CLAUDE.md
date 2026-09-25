@@ -14,6 +14,8 @@ src/projection.js       pure maths, no React — the source of every figure
 src/PensionPlanner.jsx  the whole interface
 src/styles.css          tokens, light and dark
 TODO.md                 known gaps, kept current
+research/               desk research: what people ask, and the problem
+                        statements it produced. README.md is the summary.
 
 .claude/skills/design-language/SKILL.md
                         the visual system: palette, type, the numeral rule,
