@@ -739,7 +739,7 @@ function PotLadder({ years, showToday, keyAges, start, taxFreeAge, statePensionA
           // sits right next to the building-up gold. A rule at the boundary is
           // what actually tells you where your working life ends.
           const isStart = y.age === start;
-          const mark = y.age === start ? "Income begins"
+          const mark = y.age === start ? "Drawdown begins"
             : y.age === taxFreeAge ? "Tax-free cash"
             : y.age === spAge ? "State Pension" : null;
           const colour = !y.drawing
